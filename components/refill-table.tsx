@@ -34,12 +34,13 @@ interface RefillTableProps {
   items: RefillItem[]
   prefilledStockIn?: Record<string, number>
   isEditable?: boolean
+  onValuesChange?: (values: Record<string, RowValues>) => void
 }
 
 const inputCls =
   "w-16 rounded-md border bg-background px-1.5 py-1 text-center text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
 
-export function RefillTable({ machineId, items, prefilledStockIn, isEditable = true }: RefillTableProps) {
+export function RefillTable({ machineId, items, prefilledStockIn, isEditable = true, onValuesChange }: RefillTableProps) {
   const sortedItems = React.useMemo(
     () =>
       [...items].sort((a, b) =>
@@ -78,28 +79,24 @@ export function RefillTable({ machineId, items, prefilledStockIn, isEditable = t
   )
 
   React.useEffect(() => {
-    setValues((prev) =>
-      Object.fromEntries(
-        items.map((item) => {
-          const hasPrefilled = prefilledStockIn?.[item.slot] != null
-          const stockIn = hasPrefilled
-            ? (prefilledStockIn?.[item.slot] ?? 0)
-            : (prev[item.slot]?.stockIn ?? item.stockIn)
-          const available = item.maxCapacity - item.currentInventory
-          const overflow = hasPrefilled
-            ? Math.max(0, stockIn - available)
-            : (prev[item.slot]?.overflow ?? item.overflow)
-          const stockOut = prev[item.slot]?.stockOut ?? item.stockOut
-          return [item.slot, { stockIn, overflow, stockOut }]
-        })
-      )
-    )
-  }, [items, prefilledStockIn])
+    onValuesChange?.(values)
+  }, [values, onValuesChange])
 
   function handleChange(slot: string, field: keyof RowValues, raw: string) {
     const num = raw === "" ? 0 : Math.max(0, parseInt(raw) || 0)
     setValues((prev) => {
-      const updated = { ...prev[slot], [field]: num }
+      const item = itemMap[slot]
+      const baseStockIn = prefilledStockIn?.[slot] ?? item?.stockIn ?? 0
+      const baseOverflow = prefilledStockIn?.[slot] != null
+        ? calcOverflow(slot, baseStockIn)
+        : (item?.overflow ?? 0)
+      const baseStockOut = item?.stockOut ?? 0
+      const current = prev[slot] ?? {
+        stockIn: baseStockIn,
+        overflow: baseOverflow,
+        stockOut: baseStockOut,
+      }
+      const updated = { ...current, [field]: num }
       if (field === "stockIn") {
         updated.overflow = calcOverflow(slot, num)
       }
@@ -117,7 +114,8 @@ export function RefillTable({ machineId, items, prefilledStockIn, isEditable = t
         <span className="text-[11px] text-muted-foreground">{items.length} slots</span>
       </div>
 
-      <Table className="text-xs">
+      <div className="overflow-x-auto">
+      <Table className="text-xs min-w-[760px]">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
             {["Slot", "Stock In", "Overflow", "Stock Out", "Inventory", "", "Product Name", "Max"].map(
@@ -135,7 +133,15 @@ export function RefillTable({ machineId, items, prefilledStockIn, isEditable = t
 
         <TableBody>
           {sortedItems.map((item) => {
-            const row = values[item.slot] ?? { stockIn: 0, overflow: 0, stockOut: 0 }
+            const baseStockIn = prefilledStockIn?.[item.slot] ?? item.stockIn
+            const baseOverflow = prefilledStockIn?.[item.slot] != null
+              ? calcOverflow(item.slot, baseStockIn)
+              : item.overflow
+            const row = values[item.slot] ?? {
+              stockIn: baseStockIn,
+              overflow: baseOverflow,
+              stockOut: item.stockOut,
+            }
             return (
               <TableRow key={item.slot} className="h-10">
                 {/* Slot */}
@@ -217,6 +223,7 @@ export function RefillTable({ machineId, items, prefilledStockIn, isEditable = t
           })}
         </TableBody>
       </Table>
+      </div>
     </div>
   )
 }

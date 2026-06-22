@@ -5,8 +5,14 @@ import { TruckIcon, AlertCircleIcon, CheckCircleIcon, XIcon } from "lucide-react
 import { FieldSelect } from "@/components/field-select"
 import { RefillTable } from "@/components/refill-table"
 import { getDOByCode, markDOComplete, type DeliveryOrder } from "@/lib/do-store"
-import { getRefillData, REFILL_DATA_STORAGE_KEY, type RefillDataMap } from "@/lib/refill-store"
+import { getRefillData, REFILL_DATA_STORAGE_KEY, saveRefillData, type RefillDataMap } from "@/lib/refill-store"
 import { Button } from "@/components/ui/button"
+
+type RefillRowValues = {
+  stockIn: number
+  overflow: number
+  stockOut: number
+}
 
 export function HomeContent() {
   const [selectedMachine, setSelectedMachine] = React.useState("")
@@ -16,6 +22,7 @@ export function HomeContent() {
   const [doError, setDoError] = React.useState("")
   const [activeDO, setActiveDO] = React.useState<DeliveryOrder | null>(null)
   const [refillComplete, setRefillComplete] = React.useState(false)
+  const [tableValues, setTableValues] = React.useState<Record<string, RefillRowValues>>({})
 
   React.useEffect(() => {
     function handleStorage(event: StorageEvent) {
@@ -49,6 +56,7 @@ export function HomeContent() {
     setDoError("")
     setActiveDO(null)
     setRefillComplete(false)
+    setTableValues({})
   }
 
   function handleMachineChange(val: string) {
@@ -56,6 +64,7 @@ export function HomeContent() {
     setDoCode("")
     setDoError("")
     setActiveDO(null)
+    setTableValues({})
   }
 
   function handleLoadDO(e: React.FormEvent) {
@@ -88,6 +97,40 @@ export function HomeContent() {
   }
 
   function handleCompleteRefill() {
+    if (!selectedMachine || items.length === 0) return
+
+    const updatedMap: RefillDataMap = Object.fromEntries(
+      Object.entries(refillData).map(([machineId, machineItems]) => {
+        if (machineId !== selectedMachine) return [machineId, machineItems]
+
+        const updatedItems = machineItems.map((item) => {
+          const row = tableValues[item.slot] ?? {
+            stockIn: item.stockIn,
+            overflow: item.overflow,
+            stockOut: item.stockOut,
+          }
+          const netIn = Math.max(0, row.stockIn - row.overflow)
+          const nextInventory = Math.max(
+            0,
+            Math.min(item.maxCapacity, item.currentInventory + netIn - row.stockOut)
+          )
+
+          return {
+            ...item,
+            stockIn: row.stockIn,
+            overflow: row.overflow,
+            stockOut: row.stockOut,
+            currentInventory: nextInventory,
+          }
+        })
+
+        return [machineId, updatedItems]
+      })
+    )
+
+    saveRefillData(updatedMap)
+    setRefillData(updatedMap)
+
     if (activeDO) markDOComplete(activeDO.code)
     setRefillComplete(true)
   }
@@ -183,10 +226,12 @@ export function HomeContent() {
       {/* Refill table */}
       {selectedMachine && items.length > 0 && (
         <RefillTable
+          key={`${selectedMachine}:${activeDO?.code ?? "manual"}`}
           machineId={selectedMachine}
           items={items}
           prefilledStockIn={activeDO ? doPrefilledQty : undefined}
           isEditable={refillStarted}
+          onValuesChange={setTableValues}
         />
       )}
 

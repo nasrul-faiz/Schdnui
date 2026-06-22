@@ -614,7 +614,8 @@ export function EditModeContent() {
           </div>
 
           <div className="rounded-xl border bg-card overflow-hidden text-xs">
-            <Table className="text-xs">
+            <div className="overflow-x-auto">
+            <Table className="text-xs min-w-[640px]">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   {["Machine ID", "Label / Location", "Actions"].map((h, i) => (
@@ -658,6 +659,7 @@ export function EditModeContent() {
                 })}
               </TableBody>
             </Table>
+            </div>
           </div>
 
           <div className="rounded-xl border bg-card overflow-hidden text-xs">
@@ -697,7 +699,8 @@ export function EditModeContent() {
               </Button>
             </div>
 
-            <Table className="text-xs">
+            <div className="overflow-x-auto">
+            <Table className="text-xs min-w-[760px]">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   {["Slot", "Product", "Max", "Machine", "Actions"].map((h, i) => (
@@ -793,6 +796,7 @@ export function EditModeContent() {
                 )}
               </TableBody>
             </Table>
+            </div>
           </div>
         </>
       )}
