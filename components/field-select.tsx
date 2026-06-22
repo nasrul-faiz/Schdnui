@@ -22,22 +22,21 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-const departments = [
-  { value: "engineering", label: "Engineering" },
-  { value: "design", label: "Design" },
-  { value: "marketing", label: "Marketing" },
-  { value: "sales", label: "Sales" },
-  { value: "support", label: "Customer Support" },
-  { value: "hr", label: "Human Resources" },
-  { value: "finance", label: "Finance" },
-  { value: "operations", label: "Operations" },
+export const machines = [
+  { value: "M0031", label: "M0031 — Lobby A" },
+  { value: "M0032", label: "M0032 — Lobby B" },
+  { value: "M0045", label: "M0045 — Floor 3" },
+  { value: "M0060", label: "M0060 — Cafeteria" },
 ] as const
 
-export function FieldSelect() {
-  const [open, setOpen] = React.useState(false)
-  const [value, setValue] = React.useState("")
+interface FieldSelectProps {
+  value: string
+  onChange: (value: string) => void
+}
 
-  const selectedDepartment = departments.find((item) => item.value === value)
+export function FieldSelect({ value, onChange }: FieldSelectProps) {
+  const [open, setOpen] = React.useState(false)
+  const selected = machines.find((m) => m.value === value)
 
   return (
     <div className="w-full max-w-sm">
@@ -52,7 +51,7 @@ export function FieldSelect() {
               aria-expanded={open}
               className="h-8 w-full justify-between rounded-lg px-2.5 font-normal"
             >
-              {selectedDepartment?.label ?? "Choose machines"}
+              {selected?.label ?? "Choose machines"}
               <ChevronsUpDownIcon className="ml-2 size-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
@@ -60,23 +59,23 @@ export function FieldSelect() {
             side="bottom"
             align="start"
             avoidCollisions={false}
-            className="w-[var(--radix-popover-trigger-width)] p-0"
+            className="w-[var(--radix-popover-trigger-width)] max-h-[70vh] overflow-hidden p-0"
           >
             <Command>
-              <CommandInput placeholder="Type to search department..." />
-              <CommandList>
-                <CommandEmpty>No department found.</CommandEmpty>
+              <CommandInput placeholder="Search machine..." />
+              <CommandList className="max-h-[60vh]">
+                <CommandEmpty>No machine found.</CommandEmpty>
                 <CommandGroup>
-                  {departments.map((department) => (
+                  {machines.map((machine) => (
                     <CommandItem
-                      key={department.value}
-                      value={department.label}
+                      key={machine.value}
+                      value={machine.label}
                       onSelect={() => {
-                        setValue(department.value)
+                        onChange(machine.value)
                         setOpen(false)
                       }}
                     >
-                      {department.label}
+                      {machine.label}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -85,7 +84,7 @@ export function FieldSelect() {
           </PopoverContent>
         </Popover>
         <FieldDescription>
-          Select your machines to refill.
+          Select your machine to view refill details.
         </FieldDescription>
       </Field>
     </div>

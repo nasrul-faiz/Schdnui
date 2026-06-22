@@ -161,7 +161,7 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+  const { isMobile, state, open, setOpen, openMobile, setOpenMobile } = useSidebar()
 
   if (collapsible === "none") {
     return (
@@ -213,23 +213,29 @@ function Sidebar({
       data-side={side}
       data-slot="sidebar"
     >
+      <button
+        type="button"
+        aria-label="Close sidebar"
+        onClick={() => setOpen(false)}
+        className={cn(
+          "fixed inset-0 z-30 bg-black/35 transition-opacity duration-200",
+          open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        )}
+      />
+
       {/* This is what handles the sidebar gap on desktop */}
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
-          "group-data-[collapsible=offcanvas]:w-0",
-          "group-data-[side=right]:rotate-180",
-          variant === "floating" || variant === "inset"
-            ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)"
+          "relative w-0 bg-transparent transition-[width] duration-200 ease-linear",
+          "group-data-[side=right]:rotate-180"
         )}
       />
       <div
         data-slot="sidebar-container"
         data-side={side}
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
+          "fixed inset-y-0 z-40 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
@@ -493,15 +499,18 @@ function SidebarMenuButton({
   variant = "default",
   size = "default",
   tooltip,
+  closeOnClick = false,
   className,
+  onClick,
   ...props
 }: React.ComponentProps<"button"> & {
   asChild?: boolean
   isActive?: boolean
   tooltip?: string | React.ComponentProps<typeof TooltipContent>
+  closeOnClick?: boolean
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot.Root : "button"
-  const { isMobile, state } = useSidebar()
+  const { isMobile, state, setOpen, setOpenMobile } = useSidebar()
 
   const button = (
     <Comp
@@ -510,6 +519,16 @@ function SidebarMenuButton({
       data-size={size}
       data-active={isActive}
       className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
+      onClick={(event) => {
+        onClick?.(event)
+        if (closeOnClick) {
+          if (isMobile) {
+            setOpenMobile(false)
+          } else {
+            setOpen(false)
+          }
+        }
+      }}
       {...props}
     />
   )
