@@ -108,6 +108,10 @@ export function RefillTable({ machineId, items, prefilledStockIn, isEditable = t
       a.slot.localeCompare(b.slot, undefined, { numeric: true, sensitivity: "base" })
     )
   }, [todaysOrders])
+  const readonlyInputCls = !isEditable
+    ? "text-muted-foreground disabled:text-muted-foreground disabled:opacity-100"
+    : ""
+
   const sortedItems = React.useMemo(
     () =>
       [...items].sort((a, b) =>
@@ -238,7 +242,7 @@ export function RefillTable({ machineId, items, prefilledStockIn, isEditable = t
                     value={row.stockIn === 0 ? "" : row.stockIn}
                     placeholder="0"
                     onChange={(e) => handleChange(item.slot, "stockIn", e.target.value)}
-                    className={`${inputCls} ${prefilledStockIn?.[item.slot] != null ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-300" : ""}`}
+                    className={`${inputCls} ${readonlyInputCls} ${prefilledStockIn?.[item.slot] != null ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-300" : ""}`}
                   />
                 </TableCell>
 
@@ -251,7 +255,7 @@ export function RefillTable({ machineId, items, prefilledStockIn, isEditable = t
                     value={row.overflow === 0 ? "" : row.overflow}
                     placeholder="0"
                     onChange={(e) => handleChange(item.slot, "overflow", e.target.value)}
-                    className={inputCls}
+                    className={`${inputCls} ${readonlyInputCls}`}
                   />
                 </TableCell>
 
@@ -264,7 +268,7 @@ export function RefillTable({ machineId, items, prefilledStockIn, isEditable = t
                     value={row.stockOut === 0 ? "" : row.stockOut}
                     placeholder="0"
                     onChange={(e) => handleChange(item.slot, "stockOut", e.target.value)}
-                    className={inputCls}
+                    className={`${inputCls} ${readonlyInputCls}`}
                   />
                 </TableCell>
 
@@ -310,7 +314,7 @@ export function RefillTable({ machineId, items, prefilledStockIn, isEditable = t
           <DialogHeader>
             <DialogTitle>DO List Today - {machineId}</DialogTitle>
             <DialogDescription>
-              {todaysOrders.length} order(s) with {todaysItemSummary.length} item line(s).
+              {todaysOrders.length} generated DO(s) with {todaysItemSummary.length} item line(s).
             </DialogDescription>
           </DialogHeader>
 
