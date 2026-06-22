@@ -1,40 +1,91 @@
 "use client"
 
+import * as React from "react"
+import { ChevronsUpDownIcon } from "lucide-react"
 import {
   Field,
   FieldDescription,
   FieldLabel,
 } from "@/components/ui/field"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command"
+import { Button } from "@/components/ui/button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+
+const departments = [
+  { value: "engineering", label: "Engineering" },
+  { value: "design", label: "Design" },
+  { value: "marketing", label: "Marketing" },
+  { value: "sales", label: "Sales" },
+  { value: "support", label: "Customer Support" },
+  { value: "hr", label: "Human Resources" },
+  { value: "finance", label: "Finance" },
+  { value: "operations", label: "Operations" },
+] as const
 
 export function FieldSelect() {
+  const [open, setOpen] = React.useState(false)
+  const [value, setValue] = React.useState("")
+
+  const selectedDepartment = departments.find((item) => item.value === value)
+
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-sm">
       <Field>
-        <FieldLabel>Department</FieldLabel>
-        <Select>
-          <SelectTrigger>
-            <SelectValue placeholder="Choose department" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="engineering">Engineering</SelectItem>
-            <SelectItem value="design">Design</SelectItem>
-            <SelectItem value="marketing">Marketing</SelectItem>
-            <SelectItem value="sales">Sales</SelectItem>
-            <SelectItem value="support">Customer Support</SelectItem>
-            <SelectItem value="hr">Human Resources</SelectItem>
-            <SelectItem value="finance">Finance</SelectItem>
-            <SelectItem value="operations">Operations</SelectItem>
-          </SelectContent>
-        </Select>
+        <FieldLabel>Machines</FieldLabel>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              role="combobox"
+              aria-expanded={open}
+              className="h-8 w-full justify-between rounded-lg px-2.5 font-normal"
+            >
+              {selectedDepartment?.label ?? "Choose machines"}
+              <ChevronsUpDownIcon className="ml-2 size-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            side="bottom"
+            align="start"
+            avoidCollisions={false}
+            className="w-[var(--radix-popover-trigger-width)] p-0"
+          >
+            <Command>
+              <CommandInput placeholder="Type to search department..." />
+              <CommandList>
+                <CommandEmpty>No department found.</CommandEmpty>
+                <CommandGroup>
+                  {departments.map((department) => (
+                    <CommandItem
+                      key={department.value}
+                      value={department.label}
+                      onSelect={() => {
+                        setValue(department.value)
+                        setOpen(false)
+                      }}
+                    >
+                      {department.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
         <FieldDescription>
-          Select your department or area of work.
+          Select your machines to refill.
         </FieldDescription>
       </Field>
     </div>
