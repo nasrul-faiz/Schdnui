@@ -186,6 +186,7 @@ export function HomeContent() {
           machineId={selectedMachine}
           items={items}
           prefilledStockIn={activeDO ? doPrefilledQty : undefined}
+          isEditable={refillStarted}
         />
       )}
 

@@ -33,16 +33,17 @@ interface RefillTableProps {
   machineId: string
   items: RefillItem[]
   prefilledStockIn?: Record<string, number>
+  isEditable?: boolean
 }
 
 const inputCls =
   "w-16 rounded-md border bg-background px-1.5 py-1 text-center text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
 
-export function RefillTable({ machineId, items, prefilledStockIn }: RefillTableProps) {
+export function RefillTable({ machineId, items, prefilledStockIn, isEditable = true }: RefillTableProps) {
   const sortedItems = React.useMemo(
     () =>
       [...items].sort((a, b) =>
-        a.productCode.localeCompare(b.productCode, undefined, {
+        a.slot.localeCompare(b.slot, undefined, {
           numeric: true,
           sensitivity: "base",
         })
@@ -147,6 +148,7 @@ export function RefillTable({ machineId, items, prefilledStockIn }: RefillTableP
                   <input
                     type="number"
                     min={0}
+                    disabled={!isEditable}
                     value={row.stockIn === 0 ? "" : row.stockIn}
                     placeholder="0"
                     onChange={(e) => handleChange(item.slot, "stockIn", e.target.value)}
@@ -159,6 +161,7 @@ export function RefillTable({ machineId, items, prefilledStockIn }: RefillTableP
                   <input
                     type="number"
                     min={0}
+                    disabled={!isEditable}
                     value={row.overflow === 0 ? "" : row.overflow}
                     placeholder="0"
                     onChange={(e) => handleChange(item.slot, "overflow", e.target.value)}
@@ -171,6 +174,7 @@ export function RefillTable({ machineId, items, prefilledStockIn }: RefillTableP
                   <input
                     type="number"
                     min={0}
+                    disabled={!isEditable}
                     value={row.stockOut === 0 ? "" : row.stockOut}
                     placeholder="0"
                     onChange={(e) => handleChange(item.slot, "stockOut", e.target.value)}

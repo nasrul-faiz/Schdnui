@@ -52,7 +52,7 @@ export function OrderingContent() {
   const sortedItems = React.useMemo(
     () =>
       [...items].sort((a, b) =>
-        a.productCode.localeCompare(b.productCode, undefined, {
+        a.slot.localeCompare(b.slot, undefined, {
           numeric: true,
           sensitivity: "base",
         })
@@ -63,17 +63,8 @@ export function OrderingContent() {
     getMachines().find((m) => m.value === selectedMachine)?.label ?? selectedMachine
 
   React.useEffect(() => {
-    if (sortedItems.length > 0) {
-      setQuantities(
-        Object.fromEntries(
-          sortedItems.map((item) => {
-            const needed = item.maxCapacity - item.currentInventory
-            return [item.slot, needed > 0 ? needed : 0]
-          })
-        )
-      )
-      setSubmittedDO(null)
-    }
+    setQuantities({})
+    setSubmittedDO(null)
   }, [selectedMachine, sortedItems])
 
   function handleQtyChange(slot: string, raw: string) {
