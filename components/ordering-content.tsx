@@ -48,7 +48,10 @@ export function OrderingContent() {
     return () => window.removeEventListener("storage", handleStorage)
   }, [])
 
-  const items = selectedMachine ? refillData[selectedMachine] ?? [] : []
+  const items = React.useMemo(
+    () => (selectedMachine ? refillData[selectedMachine] ?? [] : []),
+    [selectedMachine, refillData]
+  )
   const sortedItems = React.useMemo(
     () =>
       [...items].sort((a, b) =>
@@ -62,10 +65,11 @@ export function OrderingContent() {
   const machineLabel =
     getMachines().find((m) => m.value === selectedMachine)?.label ?? selectedMachine
 
-  React.useEffect(() => {
+  function handleMachineChange(value: string) {
+    setSelectedMachine(value)
     setQuantities({})
     setSubmittedDO(null)
-  }, [selectedMachine, sortedItems])
+  }
 
   function handleQtyChange(slot: string, raw: string) {
     const num = raw === "" ? 0 : Math.max(0, parseInt(raw) || 0)
@@ -110,7 +114,7 @@ export function OrderingContent() {
 
   return (
     <div className="flex flex-col gap-6">
-      <FieldSelect value={selectedMachine} onChange={setSelectedMachine} />
+      <FieldSelect value={selectedMachine} onChange={handleMachineChange} />
 
       {selectedMachine && items.length > 0 && (
         <>
