@@ -21,21 +21,24 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-
-export const machines = [
-  { value: "M0031", label: "M0031 — Lobby A" },
-  { value: "M0032", label: "M0032 — Lobby B" },
-  { value: "M0045", label: "M0045 — Floor 3" },
-  { value: "M0060", label: "M0060 — Cafeteria" },
-] as const
+import { getMachines, type Machine } from "@/lib/machine-store"
 
 interface FieldSelectProps {
   value: string
   onChange: (value: string) => void
+  machines?: Machine[]
 }
 
-export function FieldSelect({ value, onChange }: FieldSelectProps) {
+export function FieldSelect({ value, onChange, machines: machinesProp }: FieldSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const [machines, setMachines] = React.useState<Machine[]>(machinesProp ?? [])
+
+  React.useEffect(() => {
+    if (!machinesProp) {
+      setMachines(getMachines())
+    }
+  }, [machinesProp])
+
   const selected = machines.find((m) => m.value === value)
 
   return (

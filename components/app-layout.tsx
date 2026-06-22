@@ -7,8 +7,10 @@ import {
   SettingsIcon,
   InboxIcon,
   ChevronsUpDownIcon,
-  PlusIcon,
   CheckIcon,
+  RefreshCwIcon,
+  ShoppingCartIcon,
+  PencilIcon,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -35,10 +37,36 @@ import {
 } from "@/components/ui/sidebar"
 import { ThemeToggle } from "@/components/theme-toggle"
 import Link from "next/link"
+import { usePathname, useRouter } from "next/navigation"
 
 const workspaces = [
-  { name: "Schdnui", plan: "Free" },
-  { name: "My Project", plan: "Pro" },
+  {
+    id: "refill",
+    name: "Refill",
+    description: "Key-in refill data",
+    icon: RefreshCwIcon,
+    initial: "R",
+    color: "bg-blue-600",
+    url: "/home",
+  },
+  {
+    id: "ordering",
+    name: "Ordering",
+    description: "Place product orders",
+    icon: ShoppingCartIcon,
+    initial: "O",
+    color: "bg-emerald-600",
+    url: "/ordering",
+  },
+  {
+    id: "edit",
+    name: "Edit Mode",
+    description: "Manage products & slots",
+    icon: PencilIcon,
+    initial: "E",
+    color: "bg-violet-600",
+    url: "/edit",
+  },
 ]
 
 const navItems = [
@@ -58,6 +86,12 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ title, children }: AppLayoutProps) {
+  const pathname = usePathname()
+  const router = useRouter()
+
+  const activeWorkspace =
+    workspaces.find((ws) => pathname.startsWith(ws.url)) ?? workspaces[0]
+
   return (
     <SidebarProvider>
       <Sidebar>
@@ -67,12 +101,18 @@ export function AppLayout({ title, children }: AppLayoutProps) {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <SidebarMenuButton size="lg">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-bold shrink-0">
-                      S
+                    <div
+                      className={`flex h-8 w-8 items-center justify-center rounded-md ${activeWorkspace.color} text-white text-sm font-bold shrink-0`}
+                    >
+                      {activeWorkspace.initial}
                     </div>
                     <div className="flex flex-col leading-tight">
-                      <span className="font-semibold text-sm">Schdnui</span>
-                      <span className="text-xs text-muted-foreground">Free</span>
+                      <span className="font-semibold text-sm">
+                        {activeWorkspace.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {activeWorkspace.description}
+                      </span>
                     </div>
                     <ChevronsUpDownIcon className="ml-auto size-4 text-muted-foreground" />
                   </SidebarMenuButton>
@@ -82,27 +122,39 @@ export function AppLayout({ title, children }: AppLayoutProps) {
                   align="start"
                 >
                   <DropdownMenuLabel className="text-xs text-muted-foreground">
-                    Workspaces
+                    Apps
                   </DropdownMenuLabel>
-                  {workspaces.map((ws) => (
-                    <DropdownMenuItem key={ws.name} className="gap-2">
-                      <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground text-xs font-bold shrink-0">
-                        {ws.name[0]}
-                      </div>
-                      <div className="flex flex-col leading-tight">
-                        <span className="text-sm">{ws.name}</span>
-                        <span className="text-xs text-muted-foreground">{ws.plan}</span>
-                      </div>
-                      {ws.name === "Schdnui" && <CheckIcon className="ml-auto size-4" />}
-                    </DropdownMenuItem>
-                  ))}
+                  {workspaces.map((ws) => {
+                    const isActive = ws.id === activeWorkspace.id
+                    return (
+                      <DropdownMenuItem
+                        key={ws.id}
+                        className="gap-2"
+                        onSelect={() => router.push(ws.url)}
+                      >
+                        <div
+                          className={`flex h-6 w-6 items-center justify-center rounded ${ws.color} text-white text-xs font-bold shrink-0`}
+                        >
+                          {ws.initial}
+                        </div>
+                        <div className="flex flex-col leading-tight">
+                          <span className="text-sm">{ws.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {ws.description}
+                          </span>
+                        </div>
+                        {isActive && (
+                          <CheckIcon className="ml-auto size-4 shrink-0" />
+                        )}
+                      </DropdownMenuItem>
+                    )
+                  })}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded border bg-background shrink-0">
-                      <PlusIcon className="size-3" />
-                    </div>
-                    <span className="text-sm">Add workspace</span>
-                  </DropdownMenuItem>
+                  <div className="px-2 py-1.5">
+                    <p className="text-[11px] text-muted-foreground">
+                      Switch between apps to manage refills, orders, and products.
+                    </p>
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
             </SidebarMenuItem>
@@ -153,9 +205,7 @@ export function AppLayout({ title, children }: AppLayoutProps) {
           <SidebarTrigger />
           <h1 className="font-semibold">{title}</h1>
         </header>
-        <main className="flex flex-1 flex-col gap-4 p-6">
-          {children}
-        </main>
+        <main className="flex flex-1 flex-col gap-4 p-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   )

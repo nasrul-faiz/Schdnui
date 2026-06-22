@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import Image from "next/image"
+import { ImageLightbox } from "@/components/image-lightbox"
 import {
   Table,
   TableBody,
@@ -32,25 +32,48 @@ interface RowValues {
 interface RefillTableProps {
   machineId: string
   items: RefillItem[]
+  prefilledStockIn?: Record<string, number>
 }
 
 const inputCls =
   "w-16 rounded-md border bg-background px-1.5 py-1 text-center text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
 
-export function RefillTable({ machineId, items }: RefillTableProps) {
+export function RefillTable({ machineId, items, prefilledStockIn }: RefillTableProps) {
+  const itemMap = React.useMemo(
+    () => Object.fromEntries(items.map((i) => [i.slot, i])),
+    [items]
+  )
+
+  const calcOverflow = (slot: string, stockIn: number) => {
+    const item = itemMap[slot]
+    if (!item) return 0
+    const available = item.maxCapacity - item.currentInventory
+    return Math.max(0, stockIn - available)
+  }
+
   const [values, setValues] = React.useState<Record<string, RowValues>>(
     () =>
       Object.fromEntries(
-        items.map((item) => [
-          item.slot,
-          { stockIn: item.stockIn, overflow: item.overflow, stockOut: item.stockOut },
-        ])
+        items.map((item) => {
+          const stockIn = prefilledStockIn?.[item.slot] ?? item.stockIn
+          const available = item.maxCapacity - item.currentInventory
+          const overflow = prefilledStockIn?.[item.slot] != null
+            ? Math.max(0, stockIn - available)
+            : item.overflow
+          return [item.slot, { stockIn, overflow, stockOut: item.stockOut }]
+        })
       )
   )
 
   function handleChange(slot: string, field: keyof RowValues, raw: string) {
     const num = raw === "" ? 0 : Math.max(0, parseInt(raw) || 0)
-    setValues((prev) => ({ ...prev, [slot]: { ...prev[slot], [field]: num } }))
+    setValues((prev) => {
+      const updated = { ...prev[slot], [field]: num }
+      if (field === "stockIn") {
+        updated.overflow = calcOverflow(slot, num)
+      }
+      return { ...prev, [slot]: updated }
+    })
   }
 
   return (
@@ -97,7 +120,7 @@ export function RefillTable({ machineId, items }: RefillTableProps) {
                     value={row.stockIn === 0 ? "" : row.stockIn}
                     placeholder="0"
                     onChange={(e) => handleChange(item.slot, "stockIn", e.target.value)}
-                    className={inputCls}
+                    className={`${inputCls} ${prefilledStockIn?.[item.slot] ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-300" : ""}`}
                   />
                 </TableCell>
 
@@ -132,16 +155,16 @@ export function RefillTable({ machineId, items }: RefillTableProps) {
 
                 {/* Image */}
                 <TableCell className="text-center py-1.5 px-1.5">
-                  <div className="relative h-8 w-8 mx-auto rounded-md overflow-hidden border bg-muted">
-                    {item.image && (
-                      <Image
-                        src={item.image}
-                        alt={item.productName}
-                        fill
-                        className="object-cover"
-                        sizes="32px"
-                      />
-                    )}
+                  <div className="h-8 w-8 mx-auto rounded-md overflow-hidden border bg-muted">
+                    {item.image ? (
+                      <ImageLightbox src={item.image} alt={item.productName}>
+                        <img
+                          src={item.image}
+                          alt={item.productName}
+                          className="h-full w-full object-cover"
+                        />
+                      </ImageLightbox>
+                    ) : null}
                   </div>
                 </TableCell>
 
