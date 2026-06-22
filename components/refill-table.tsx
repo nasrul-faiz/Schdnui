@@ -1,7 +1,9 @@
 "use client"
 
 import * as React from "react"
+import { ClipboardListIcon } from "lucide-react"
 import { ImageLightbox } from "@/components/image-lightbox"
+import { getAllDOs, DELIVERY_ORDERS_STORAGE_KEY, DELIVERY_ORDERS_UPDATED_EVENT, type DeliveryOrder } from "@/lib/do-store"
 import {
   Table,
   TableBody,
@@ -10,6 +12,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 export interface RefillItem {
   slot: string
@@ -41,6 +51,63 @@ const inputCls =
   "w-16 rounded-md border bg-background px-1.5 py-1 text-center text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
 
 export function RefillTable({ machineId, items, prefilledStockIn, isEditable = true, onValuesChange }: RefillTableProps) {
+  const [allOrders, setAllOrders] = React.useState<DeliveryOrder[]>(() => getAllDOs())
+  const [isViewDOpen, setIsViewDOOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    function reloadOrders() {
+      setAllOrders(getAllDOs())
+    }
+
+    function handleStorage(event: StorageEvent) {
+      if (event.key === DELIVERY_ORDERS_STORAGE_KEY) {
+        reloadOrders()
+      }
+    }
+
+    window.addEventListener("storage", handleStorage)
+    window.addEventListener(DELIVERY_ORDERS_UPDATED_EVENT, reloadOrders)
+    return () => {
+      window.removeEventListener("storage", handleStorage)
+      window.removeEventListener(DELIVERY_ORDERS_UPDATED_EVENT, reloadOrders)
+    }
+  }, [])
+
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const todaysOrders = React.useMemo(
+    () =>
+      allOrders.filter(
+        (order) => order.machineId === machineId && order.date.slice(0, 10) === todayKey
+      ),
+    [allOrders, machineId, todayKey]
+  )
+
+  const todaysItemSummary = React.useMemo(() => {
+    const map = new Map<
+      string,
+      { slot: string; productCode: string; productName: string; qty: number }
+    >()
+    todaysOrders.forEach((order) => {
+      order.items.forEach((item) => {
+        const key = `${item.slot}-${item.productCode}`
+        const existing = map.get(key)
+        if (existing) {
+          existing.qty += item.qty
+        } else {
+          map.set(key, {
+            slot: item.slot,
+            productCode: item.productCode,
+            productName: item.productName,
+            qty: item.qty,
+          })
+        }
+      })
+    })
+
+    return Array.from(map.values()).sort((a, b) =>
+      a.slot.localeCompare(b.slot, undefined, { numeric: true, sensitivity: "base" })
+    )
+  }, [todaysOrders])
   const sortedItems = React.useMemo(
     () =>
       [...items].sort((a, b) =>
@@ -111,7 +178,20 @@ export function RefillTable({ machineId, items, prefilledStockIn, isEditable = t
         <span className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground">
           {machineId}
         </span>
-        <span className="text-[11px] text-muted-foreground">{items.length} slots</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground">{items.length} slots</span>
+          <Button
+            type="button"
+            size="sm"
+            disabled={todaysOrders.length === 0}
+            onClick={() => setIsViewDOOpen(true)}
+            className={`h-7 text-[11px] gap-1.5 px-2.5 ${todaysOrders.length > 0 ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
+            variant={todaysOrders.length > 0 ? "default" : "outline"}
+          >
+            <ClipboardListIcon className="size-3.5" />
+            View DO
+          </Button>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -224,6 +304,49 @@ export function RefillTable({ machineId, items, prefilledStockIn, isEditable = t
         </TableBody>
       </Table>
       </div>
+
+      <Dialog open={isViewDOpen} onOpenChange={setIsViewDOOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>DO List Today - {machineId}</DialogTitle>
+            <DialogDescription>
+              {todaysOrders.length} order(s) with {todaysItemSummary.length} item line(s).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] overflow-auto rounded-lg border">
+            <Table className="text-xs min-w-[620px]">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-center text-[11px] font-semibold tracking-wide py-2">Slot</TableHead>
+                  <TableHead className="text-left text-[11px] font-semibold tracking-wide py-2">Product</TableHead>
+                  <TableHead className="text-left text-[11px] font-semibold tracking-wide py-2">Code</TableHead>
+                  <TableHead className="text-right text-[11px] font-semibold tracking-wide py-2">Qty</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {todaysItemSummary.map((item) => (
+                  <TableRow key={`${item.slot}-${item.productCode}`} className="h-9">
+                    <TableCell className="text-center py-1.5">
+                      <span className="font-mono font-bold tracking-wider">{item.slot}</span>
+                    </TableCell>
+                    <TableCell className="py-1.5 font-medium">{item.productName}</TableCell>
+                    <TableCell className="py-1.5 text-muted-foreground">{item.productCode}</TableCell>
+                    <TableCell className="py-1.5 text-right font-semibold tabular-nums">{item.qty}</TableCell>
+                  </TableRow>
+                ))}
+                {todaysItemSummary.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                      No orders for this machine today.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

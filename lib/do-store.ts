@@ -14,6 +14,14 @@ export interface DeliveryOrder {
   status: "pending" | "completed"
 }
 
+export const DELIVERY_ORDERS_STORAGE_KEY = "delivery_orders"
+export const DELIVERY_ORDERS_UPDATED_EVENT = "delivery-orders-updated"
+
+function emitDeliveryOrdersUpdated(): void {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent(DELIVERY_ORDERS_UPDATED_EVENT))
+}
+
 export function generateDOCode(): string {
   const now = new Date()
   const date = now.toISOString().slice(2, 10).replace(/-/g, "")
@@ -25,13 +33,14 @@ export function generateDOCode(): string {
 export function saveDO(order: DeliveryOrder): void {
   const all = getAllDOs()
   all.push(order)
-  localStorage.setItem("delivery_orders", JSON.stringify(all))
+  localStorage.setItem(DELIVERY_ORDERS_STORAGE_KEY, JSON.stringify(all))
+  emitDeliveryOrdersUpdated()
 }
 
 export function getAllDOs(): DeliveryOrder[] {
   if (typeof window === "undefined") return []
   try {
-    const raw = localStorage.getItem("delivery_orders")
+    const raw = localStorage.getItem(DELIVERY_ORDERS_STORAGE_KEY)
     return raw ? JSON.parse(raw) : []
   } catch {
     return []
@@ -47,5 +56,6 @@ export function markDOComplete(code: string): void {
   const updated = all.map((d) =>
     d.code === code ? { ...d, status: "completed" as const } : d
   )
-  localStorage.setItem("delivery_orders", JSON.stringify(updated))
+  localStorage.setItem(DELIVERY_ORDERS_STORAGE_KEY, JSON.stringify(updated))
+  emitDeliveryOrdersUpdated()
 }
