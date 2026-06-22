@@ -49,14 +49,24 @@ export function OrderingContent() {
   }, [])
 
   const items = selectedMachine ? refillData[selectedMachine] ?? [] : []
+  const sortedItems = React.useMemo(
+    () =>
+      [...items].sort((a, b) =>
+        a.productCode.localeCompare(b.productCode, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        })
+      ),
+    [items]
+  )
   const machineLabel =
     getMachines().find((m) => m.value === selectedMachine)?.label ?? selectedMachine
 
   React.useEffect(() => {
-    if (items.length > 0) {
+    if (sortedItems.length > 0) {
       setQuantities(
         Object.fromEntries(
-          items.map((item) => {
+          sortedItems.map((item) => {
             const needed = item.maxCapacity - item.currentInventory
             return [item.slot, needed > 0 ? needed : 0]
           })
@@ -64,14 +74,14 @@ export function OrderingContent() {
       )
       setSubmittedDO(null)
     }
-  }, [selectedMachine])
+  }, [selectedMachine, sortedItems])
 
   function handleQtyChange(slot: string, raw: string) {
     const num = raw === "" ? 0 : Math.max(0, parseInt(raw) || 0)
     setQuantities((prev) => ({ ...prev, [slot]: num }))
   }
 
-  const orderedItems = items
+  const orderedItems = sortedItems
     .map((item) => ({ ...item, qty: quantities[item.slot] ?? 0 }))
     .filter((item) => item.qty > 0)
 
@@ -139,7 +149,7 @@ export function OrderingContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((item) => {
+                {sortedItems.map((item) => {
                   const qty = quantities[item.slot] ?? 0
                   const isLow = item.currentInventory < item.maxCapacity * 0.3
                   return (

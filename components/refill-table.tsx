@@ -39,6 +39,17 @@ const inputCls =
   "w-16 rounded-md border bg-background px-1.5 py-1 text-center text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
 
 export function RefillTable({ machineId, items, prefilledStockIn }: RefillTableProps) {
+  const sortedItems = React.useMemo(
+    () =>
+      [...items].sort((a, b) =>
+        a.productCode.localeCompare(b.productCode, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        })
+      ),
+    [items]
+  )
+
   const itemMap = React.useMemo(
     () => Object.fromEntries(items.map((i) => [i.slot, i])),
     [items]
@@ -64,6 +75,25 @@ export function RefillTable({ machineId, items, prefilledStockIn }: RefillTableP
         })
       )
   )
+
+  React.useEffect(() => {
+    setValues((prev) =>
+      Object.fromEntries(
+        items.map((item) => {
+          const hasPrefilled = prefilledStockIn?.[item.slot] != null
+          const stockIn = hasPrefilled
+            ? (prefilledStockIn?.[item.slot] ?? 0)
+            : (prev[item.slot]?.stockIn ?? item.stockIn)
+          const available = item.maxCapacity - item.currentInventory
+          const overflow = hasPrefilled
+            ? Math.max(0, stockIn - available)
+            : (prev[item.slot]?.overflow ?? item.overflow)
+          const stockOut = prev[item.slot]?.stockOut ?? item.stockOut
+          return [item.slot, { stockIn, overflow, stockOut }]
+        })
+      )
+    )
+  }, [items, prefilledStockIn])
 
   function handleChange(slot: string, field: keyof RowValues, raw: string) {
     const num = raw === "" ? 0 : Math.max(0, parseInt(raw) || 0)
@@ -103,7 +133,7 @@ export function RefillTable({ machineId, items, prefilledStockIn }: RefillTableP
         </TableHeader>
 
         <TableBody>
-          {items.map((item) => {
+          {sortedItems.map((item) => {
             const row = values[item.slot] ?? { stockIn: 0, overflow: 0, stockOut: 0 }
             return (
               <TableRow key={item.slot} className="h-10">
@@ -120,7 +150,7 @@ export function RefillTable({ machineId, items, prefilledStockIn }: RefillTableP
                     value={row.stockIn === 0 ? "" : row.stockIn}
                     placeholder="0"
                     onChange={(e) => handleChange(item.slot, "stockIn", e.target.value)}
-                    className={`${inputCls} ${prefilledStockIn?.[item.slot] ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-300" : ""}`}
+                    className={`${inputCls} ${prefilledStockIn?.[item.slot] != null ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 ring-1 ring-emerald-300" : ""}`}
                   />
                 </TableCell>
 
