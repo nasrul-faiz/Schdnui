@@ -4,17 +4,29 @@ import * as React from "react"
 import { TruckIcon, AlertCircleIcon, CheckCircleIcon, XIcon } from "lucide-react"
 import { FieldSelect } from "@/components/field-select"
 import { RefillTable } from "@/components/refill-table"
-import { refillData } from "@/lib/refill-data"
 import { getDOByCode, markDOComplete, type DeliveryOrder } from "@/lib/do-store"
+import { getRefillData, REFILL_DATA_STORAGE_KEY, type RefillDataMap } from "@/lib/refill-store"
 import { Button } from "@/components/ui/button"
 
 export function HomeContent() {
   const [selectedMachine, setSelectedMachine] = React.useState("")
+  const [refillData, setRefillData] = React.useState<RefillDataMap>(() => getRefillData())
   const [refillStarted, setRefillStarted] = React.useState(false)
   const [doCode, setDoCode] = React.useState("")
   const [doError, setDoError] = React.useState("")
   const [activeDO, setActiveDO] = React.useState<DeliveryOrder | null>(null)
   const [refillComplete, setRefillComplete] = React.useState(false)
+
+  React.useEffect(() => {
+    function handleStorage(event: StorageEvent) {
+      if (event.key === REFILL_DATA_STORAGE_KEY) {
+        setRefillData(getRefillData())
+      }
+    }
+
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
 
   const items = selectedMachine ? refillData[selectedMachine] ?? [] : []
 

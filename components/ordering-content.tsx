@@ -12,7 +12,7 @@ import {
 } from "lucide-react"
 import { FieldSelect } from "@/components/field-select"
 import { getMachines } from "@/lib/machine-store"
-import { refillData } from "@/lib/refill-data"
+import { getRefillData, REFILL_DATA_STORAGE_KEY, type RefillDataMap } from "@/lib/refill-store"
 import {
   Table,
   TableBody,
@@ -33,8 +33,20 @@ const inputCls =
 
 export function OrderingContent() {
   const [selectedMachine, setSelectedMachine] = React.useState("")
+  const [refillData, setRefillData] = React.useState<RefillDataMap>(() => getRefillData())
   const [quantities, setQuantities] = React.useState<Record<string, number>>({})
   const [submittedDO, setSubmittedDO] = React.useState<DeliveryOrder | null>(null)
+
+  React.useEffect(() => {
+    function handleStorage(event: StorageEvent) {
+      if (event.key === REFILL_DATA_STORAGE_KEY) {
+        setRefillData(getRefillData())
+      }
+    }
+
+    window.addEventListener("storage", handleStorage)
+    return () => window.removeEventListener("storage", handleStorage)
+  }, [])
 
   const items = selectedMachine ? refillData[selectedMachine] ?? [] : []
   const machineLabel =

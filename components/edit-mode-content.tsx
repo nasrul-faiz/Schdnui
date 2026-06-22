@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { PlusIcon, PencilIcon, Trash2Icon, CheckIcon, XIcon, ServerIcon, PackageIcon, UploadIcon, LinkIcon } from "lucide-react"
-import { refillData } from "@/lib/refill-data"
+import { getRefillData, saveRefillData, type RefillDataMap } from "@/lib/refill-store"
 import type { RefillItem } from "@/components/refill-table"
 import {
   Table,
@@ -20,9 +20,9 @@ type Tab = "products" | "machines"
 type Product = Pick<RefillItem, "productCode" | "productName" | "image">
 type MachinePlacement = Omit<RefillItem, "productName" | "image"> & { machineId: string }
 
-function buildInitialProducts(): Product[] {
+function buildInitialProducts(data: RefillDataMap): Product[] {
   const map = new Map<string, Product>()
-  Object.values(refillData).forEach((items) => {
+  Object.values(data).forEach((items) => {
     items.forEach((item) => {
       if (!map.has(item.productCode)) {
         map.set(item.productCode, {
@@ -36,8 +36,8 @@ function buildInitialProducts(): Product[] {
   return Array.from(map.values())
 }
 
-function buildInitialPlacements(): MachinePlacement[] {
-  return Object.entries(refillData).flatMap(([machineId, items]) =>
+function buildInitialPlacements(data: RefillDataMap): MachinePlacement[] {
+  return Object.entries(data).flatMap(([machineId, items]) =>
     items.map((item) => ({
       slot: item.slot,
       productCode: item.productCode,
@@ -49,6 +49,33 @@ function buildInitialPlacements(): MachinePlacement[] {
       machineId,
     }))
   )
+}
+
+function buildRefillDataMap(placements: MachinePlacement[], products: Product[]): RefillDataMap {
+  const productMap = new Map(products.map((product) => [product.productCode, product]))
+
+  return placements.reduce<RefillDataMap>((acc, placement) => {
+    const product = productMap.get(placement.productCode)
+    if (!product) return acc
+
+    const item: RefillItem = {
+      slot: placement.slot,
+      productCode: placement.productCode,
+      productName: product.productName,
+      image: product.image,
+      stockIn: placement.stockIn,
+      overflow: placement.overflow,
+      stockOut: placement.stockOut,
+      currentInventory: placement.currentInventory,
+      maxCapacity: placement.maxCapacity,
+    }
+
+    if (!acc[placement.machineId]) {
+      acc[placement.machineId] = []
+    }
+    acc[placement.machineId].push(item)
+    return acc
+  }, {})
 }
 
 const inputCls =
@@ -237,6 +264,7 @@ function MachineEditRow({ machine, onSave, onCancel }: MachineEditRowProps) {
 export function EditModeContent() {
   const [tab, setTab] = React.useState<Tab>("products")
   const [machines, setMachines] = React.useState<Machine[]>(() => getMachines())
+  const [initialRefillData] = React.useState<RefillDataMap>(() => getRefillData())
 
   // machines state
   const persistMachines = (updated: Machine[]) => {
@@ -245,7 +273,7 @@ export function EditModeContent() {
   }
 
   // product master state
-  const [products, setProducts] = React.useState<Product[]>(buildInitialProducts)
+  const [products, setProducts] = React.useState<Product[]>(() => buildInitialProducts(initialRefillData))
   const [editingProductCode, setEditingProductCode] = React.useState<string | null>(null)
   const [addingNew, setAddingNew] = React.useState(false)
   const [newProduct, setNewProduct] = React.useState<Product>({
@@ -255,7 +283,7 @@ export function EditModeContent() {
   })
 
   // placement state (product x machine)
-  const [placements, setPlacements] = React.useState<MachinePlacement[]>(buildInitialPlacements)
+  const [placements, setPlacements] = React.useState<MachinePlacement[]>(() => buildInitialPlacements(initialRefillData))
   const [selectedPlacementMachine, setSelectedPlacementMachine] = React.useState<string>(() => getMachines()[0]?.value ?? "")
   const [placementEditingKey, setPlacementEditingKey] = React.useState<string | null>(null)
   const [addingPlacement, setAddingPlacement] = React.useState(false)
@@ -277,6 +305,10 @@ export function EditModeContent() {
   const placementsForMachine = placements
     .filter((placement) => placement.machineId === selectedPlacementMachine)
     .sort((a, b) => a.slot.localeCompare(b.slot))
+
+  React.useEffect(() => {
+    saveRefillData(buildRefillDataMap(placements, products))
+  }, [placements, products])
 
   // machine state
   const [editingMachineId, setEditingMachineId] = React.useState<string | null>(null)
