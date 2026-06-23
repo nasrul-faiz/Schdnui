@@ -1,74 +1,24 @@
 "use client"
 
 import * as React from "react"
-import { XIcon, ZoomInIcon, ZoomOutIcon } from "lucide-react"
+import "lightgallery/css/lightgallery.css"
+import "lightgallery/css/lg-thumbnail.css"
+import "lightgallery/css/lg-zoom.css"
 
-interface LightboxModalProps {
-  src: string
-  alt?: string
-  onClose: () => void
+type LightGalleryFactory = (typeof import("lightgallery"))["default"]
+
+type LightGalleryInstance = {
+  openGallery: (index?: number) => void
+  destroy: () => void
 }
 
-function LightboxModal({ src, alt = "", onClose }: LightboxModalProps) {
-  const [scale, setScale] = React.useState(1)
-
-  React.useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [onClose])
-
-  return (
-    <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      {/* Controls */}
-      <div className="absolute top-4 right-4 flex items-center gap-2 z-10" onClick={(e) => e.stopPropagation()}>
-        <button
-          onClick={() => setScale((s) => Math.max(0.5, s - 0.25))}
-          className="rounded-full bg-white/10 hover:bg-white/20 text-white p-2 transition-colors"
-        >
-          <ZoomOutIcon className="size-4" />
-        </button>
-        <button
-          onClick={() => setScale((s) => Math.min(4, s + 0.25))}
-          className="rounded-full bg-white/10 hover:bg-white/20 text-white p-2 transition-colors"
-        >
-          <ZoomInIcon className="size-4" />
-        </button>
-        <button
-          onClick={onClose}
-          className="rounded-full bg-white/10 hover:bg-white/20 text-white p-2 transition-colors"
-        >
-          <XIcon className="size-4" />
-        </button>
-      </div>
-
-      {/* Image */}
-      <div
-        className="flex items-center justify-center max-w-[90vw] max-h-[90vh] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <img
-          src={src}
-          alt={alt}
-          style={{ transform: `scale(${scale})`, transition: "transform 0.2s ease" }}
-          className="max-w-[85vw] max-h-[85vh] object-contain rounded-lg shadow-2xl select-none"
-          draggable={false}
-        />
-      </div>
-
-      {/* Caption */}
-      {alt && (
-        <div className="absolute bottom-6 left-0 right-0 text-center text-white/70 text-sm px-4">
-          {alt}
-        </div>
-      )}
-    </div>
-  )
+function escapeHtml(text: string) {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
 }
 
 interface ImageLightboxProps {
@@ -79,19 +29,64 @@ interface ImageLightboxProps {
 }
 
 export function ImageLightbox({ src, alt = "", children, className }: ImageLightboxProps) {
-  const [open, setOpen] = React.useState(false)
+  const hostRef = React.useRef<HTMLSpanElement | null>(null)
+  const instanceRef = React.useRef<LightGalleryInstance | null>(null)
+
+  const destroyGallery = React.useCallback(() => {
+    if (instanceRef.current) {
+      instanceRef.current.destroy()
+      instanceRef.current = null
+    }
+  }, [])
+
+  const initGallery = React.useCallback(async () => {
+    if (!hostRef.current || !src) return null
+    if (instanceRef.current) return instanceRef.current
+
+    const [{ default: lightGallery }, { default: lgThumbnail }, { default: lgZoom }] = await Promise.all([
+      import("lightgallery") as Promise<{ default: LightGalleryFactory }>,
+      import("lightgallery/plugins/thumbnail"),
+      import("lightgallery/plugins/zoom"),
+    ])
+
+    const subHtml = alt ? `<div class="text-sm">${escapeHtml(alt)}</div>` : ""
+
+    instanceRef.current = lightGallery(hostRef.current, {
+      dynamic: true,
+      dynamicEl: [{ src, thumb: src, subHtml }],
+      plugins: [lgThumbnail, lgZoom],
+      speed: 500,
+      thumbnail: true,
+      showCloseIcon: true,
+      download: false,
+      counter: false,
+      hideScrollbar: true,
+    }) as LightGalleryInstance
+
+    return instanceRef.current
+  }, [alt, src])
+
+  const onOpen = React.useCallback(
+    async (e: React.MouseEvent<HTMLSpanElement>) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const gallery = await initGallery()
+      gallery?.openGallery(0)
+    },
+    [initGallery],
+  )
+
+  React.useEffect(() => {
+    destroyGallery()
+  }, [destroyGallery, alt, src])
+
+  React.useEffect(() => destroyGallery, [destroyGallery])
 
   if (!src) return <>{children}</>
 
   return (
-    <>
-      <span
-        className={`cursor-zoom-in ${className ?? "contents"}`}
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true) }}
-      >
-        {children}
-      </span>
-      {open && <LightboxModal src={src} alt={alt} onClose={() => setOpen(false)} />}
-    </>
+    <span ref={hostRef} className={`cursor-zoom-in ${className ?? "contents"}`} onClick={onOpen}>
+      {children}
+    </span>
   )
 }

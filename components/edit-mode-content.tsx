@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { getMachines, saveMachines, type Machine } from "@/lib/machine-store"
+import { getMachines, type Machine } from "@/lib/machine-store"
 import { ImageLightbox } from "@/components/image-lightbox"
 
 type Tab = "products" | "machines"
@@ -276,7 +276,6 @@ export function EditModeContent() {
   // machines state
   const persistMachines = (updated: Machine[]) => {
     setMachines(updated)
-    saveMachines(updated)
   }
 
   // product master state
