@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { dbQuery } from "@/lib/db"
+import { dbQuery, getDbPool } from "@/lib/db"
 
 export const runtime = "nodejs"
 
@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to fetch refill items"
+    console.error("[GET /api/refill] Error:", message)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
@@ -112,7 +113,48 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const item: RefillItem = await request.json()
+    const payload: RefillItem | RefillItem[] = await request.json()
+
+    if (Array.isArray(payload)) {
+      const pool = getDbPool()
+      const client = await pool.connect()
+
+      try {
+        await client.query("BEGIN")
+        await client.query("DELETE FROM refill_items")
+
+        for (const item of payload) {
+          await client.query(
+            `INSERT INTO refill_items
+             (machine_id, slot, product_code, product_name, image, stock_in, overflow, stock_out, current_inventory, max_capacity)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              item.machine_id,
+              item.slot,
+              item.productCode,
+              item.productName,
+              item.image,
+              item.stockIn,
+              item.overflow,
+              item.stockOut,
+              item.currentInventory,
+              item.maxCapacity,
+            ]
+          )
+        }
+
+        await client.query("COMMIT")
+      } catch (error) {
+        await client.query("ROLLBACK")
+        throw error
+      } finally {
+        client.release()
+      }
+
+      return NextResponse.json({ success: true })
+    }
+
+    const item = payload
 
     if (!item.machine_id || !item.slot) {
       return NextResponse.json(

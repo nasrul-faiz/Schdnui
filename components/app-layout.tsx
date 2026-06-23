@@ -11,6 +11,9 @@ import {
   RefreshCwIcon,
   ShoppingCartIcon,
   PencilIcon,
+  ServerIcon,
+  LayoutGridIcon,
+  PackageIcon,
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -69,11 +72,15 @@ const workspaces = [
   },
 ]
 
-const navItems = [
+const defaultNavItems = [
   { title: "Home", icon: HomeIcon, url: "/home" },
   { title: "Inbox", icon: InboxIcon, url: "/inbox" },
   { title: "Calendar", icon: CalendarIcon, url: "/calendar" },
   { title: "Team", icon: UsersIcon, url: "/team" },
+]
+
+const editNavItems = [
+  { title: "Overview", icon: PencilIcon, url: "/edit" },
 ]
 
 const settingsItems = [
@@ -91,9 +98,11 @@ export function AppLayout({ title, children }: AppLayoutProps) {
 
   const activeWorkspace =
     workspaces.find((ws) => pathname.startsWith(ws.url)) ?? workspaces[0]
+  const navItems = activeWorkspace.id === "edit" ? editNavItems : defaultNavItems
+  const sidebarDefaultOpen = activeWorkspace.id !== "edit"
 
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={sidebarDefaultOpen}>
       <Sidebar>
         <SidebarHeader>
           <SidebarMenu>

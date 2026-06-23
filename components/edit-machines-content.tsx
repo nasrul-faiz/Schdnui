@@ -30,12 +30,13 @@ const inputCls =
 
 interface MachineEditRowProps {
   machine: Machine
-  onSave: (updated: Machine) => void
+  draftKey: string
+  draft: Machine
+  onDraftChange: (machine: Machine) => void
   onCancel: () => void
 }
 
-function MachineEditRow({ machine, onSave, onCancel }: MachineEditRowProps) {
-  const [draft, setDraft] = React.useState(machine)
+function MachineEditRow({ machine, draft, onDraftChange, onCancel }: MachineEditRowProps) {
   return (
     <TableRow className="bg-accent/20">
       <TableCell className="py-1.5 px-4">
@@ -43,7 +44,7 @@ function MachineEditRow({ machine, onSave, onCancel }: MachineEditRowProps) {
           className={inputCls}
           value={draft.value}
           onChange={(e) =>
-            setDraft((p) => ({ ...p, value: e.target.value.toUpperCase() }))
+            onDraftChange({ ...draft, value: e.target.value.toUpperCase() })
           }
           placeholder="M0001"
         />
@@ -53,19 +54,13 @@ function MachineEditRow({ machine, onSave, onCancel }: MachineEditRowProps) {
           className={inputCls}
           value={draft.label}
           onChange={(e) =>
-            setDraft((p) => ({ ...p, label: e.target.value }))
+            onDraftChange({ ...draft, label: e.target.value })
           }
           placeholder="M0001 — Location name"
         />
       </TableCell>
       <TableCell className="py-1.5 px-4">
         <div className="flex justify-center gap-1">
-          <button
-            onClick={() => onSave(draft)}
-            className="rounded p-1 hover:bg-emerald-100 dark:hover:bg-emerald-900 text-emerald-600"
-          >
-            <CheckIcon className="size-3.5" />
-          </button>
           <button
             onClick={onCancel}
             className="rounded p-1 hover:bg-muted text-muted-foreground"
@@ -78,8 +73,13 @@ function MachineEditRow({ machine, onSave, onCancel }: MachineEditRowProps) {
   )
 }
 
-export function EditMachinesContent() {
+interface EditMachinesContentProps {
+  onSaveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+}
+
+export function EditMachinesContent({ onSaveRef }: EditMachinesContentProps) {
   const [machines, setMachines] = React.useState<Machine[]>([])
+  const [drafts, setDrafts] = React.useState<Record<string, Machine>>({})
   const [loading, setLoading] = React.useState(true)
   const [editingId, setEditingId] = React.useState<number | null>(null)
   const [adding, setAdding] = React.useState(false)
@@ -95,48 +95,81 @@ export function EditMachinesContent() {
     })
   }, [])
 
-  async function handleAdd(draft: Machine) {
-    const value = draft.value.trim().toUpperCase()
-    if (!value) return
-    if (machines.some((m) => m.value === value)) return
-    const created = await createMachine({
-      value,
-      label: draft.label.trim() || value,
-    })
-    if (created) setMachines((prev) => [...prev, created])
+  const handleSaveAll = React.useCallback(async () => {
+    // Save all drafts
+    for (const [key, draft] of Object.entries(drafts)) {
+      const value = draft.value.trim().toUpperCase()
+      if (!value) continue
+
+      if (key === "new") {
+        // New machine
+        if (machines.some((m) => m.value === value)) continue
+        const created = await createMachine({
+          value,
+          label: draft.label.trim() || value,
+        })
+        if (created) {
+          setMachines((prev) => [...prev, created])
+        }
+      } else {
+        // Existing machine
+        if (draft.id && machines.some((m) => m.value === value && m.id !== draft.id)) continue
+        const updated = await updateMachine({
+          ...draft,
+          value,
+          label: draft.label.trim() || value,
+        })
+        if (updated) {
+          setMachines((prev) =>
+            prev.map((m) => (m.id === draft.id ? updated : m))
+          )
+        }
+      }
+    }
+
+    // Clear drafts and reset UI
+    setDrafts({})
     setAdding(false)
+    setEditingId(null)
+    setNewMachine({ value: "", label: "" })
+  }, [drafts, machines])
+
+  React.useEffect(() => {
+    if (onSaveRef) {
+      onSaveRef.current = handleSaveAll
+    }
+  }, [handleSaveAll, onSaveRef])
+
+  function startAdd() {
+    setAdding(true)
+    setEditingId(null)
+    setDrafts({ new: { value: "", label: "" } })
+  }
+
+  function startEdit(id: number | undefined) {
+    if (id === undefined) return
+    const machine = machines.find((m) => m.id === id)
+    if (machine) {
+      setEditingId(id)
+      setDrafts({ [`${id}`]: { ...machine } })
+    }
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setAdding(false)
+    setDrafts({})
     setNewMachine({ value: "", label: "" })
   }
 
-  async function handleSave(draft: Machine) {
-    const value = draft.value.trim().toUpperCase()
-    if (!value || !draft.id) return
-    if (machines.some((m) => m.value === value && m.id !== draft.id)) return
-    const updated = await updateMachine({
-      ...draft,
-      value,
-      label: draft.label.trim() || value,
-    })
-    if (updated) {
-      setMachines((prev) =>
-        prev.map((m) => (m.id === draft.id ? { ...updated, id: draft.id } : m))
-      )
-    }
-    setEditingId(null)
+  function updateDraft(key: string, machine: Machine) {
+    setDrafts((prev) => ({ ...prev, [key]: machine }))
   }
 
   async function handleDelete(machine: Machine) {
     if (!machine.id) return
     const ok = await deleteMachine(machine.id)
     if (ok) setMachines((prev) => prev.filter((m) => m.id !== machine.id))
-  }
-
-  if (loading) {
-    return (
-      <div className="py-10 text-center text-sm text-muted-foreground">
-        Loading…
-      </div>
-    )
   }
 
   return (
@@ -148,10 +181,8 @@ export function EditMachinesContent() {
         <Button
           size="sm"
           className="gap-1.5"
-          onClick={() => {
-            setAdding(true)
-            setEditingId(null)
-          }}
+          onClick={startAdd}
+          disabled={editingId !== null || adding}
         >
           <PlusIcon className="size-3.5" />
           Add Machine
@@ -174,21 +205,27 @@ export function EditMachinesContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {adding && (
+              {adding && drafts.new && (
                 <MachineEditRow
-                  machine={newMachine}
-                  onSave={handleAdd}
-                  onCancel={() => setAdding(false)}
+                  machine={{ value: "", label: "" }}
+                  draftKey="new"
+                  draft={drafts.new}
+                  onDraftChange={(m) => updateDraft("new", m)}
+                  onCancel={cancelEdit}
                 />
               )}
               {machines.map((machine) => {
-                if (editingId === machine.id) {
+                const draftKey = `${machine.id}`
+                const isEditing = editingId === machine.id
+                if (isEditing && drafts[draftKey]) {
                   return (
                     <MachineEditRow
                       key={machine.id}
                       machine={machine}
-                      onSave={handleSave}
-                      onCancel={() => setEditingId(null)}
+                      draftKey={draftKey}
+                      draft={drafts[draftKey]}
+                      onDraftChange={(m) => updateDraft(draftKey, m)}
+                      onCancel={cancelEdit}
                     />
                   )
                 }
@@ -205,7 +242,7 @@ export function EditMachinesContent() {
                     <TableCell className="py-1.5 px-4">
                       <div className="flex gap-1">
                         <button
-                          onClick={() => setEditingId(machine.id ?? null)}
+                          onClick={() => startEdit(machine.id)}
                           className="rounded p-1 hover:bg-muted text-muted-foreground hover:text-foreground"
                         >
                           <PencilIcon className="size-3.5" />

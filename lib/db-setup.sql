@@ -7,6 +7,16 @@ CREATE TABLE IF NOT EXISTS machines (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Product master table
+CREATE TABLE IF NOT EXISTS products (
+  id SERIAL PRIMARY KEY,
+  product_code VARCHAR(100) UNIQUE NOT NULL,
+  product_name VARCHAR(255) NOT NULL,
+  image VARCHAR(500),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Refill data table (stores inventory per machine)
 CREATE TABLE IF NOT EXISTS refill_items (
   id SERIAL PRIMARY KEY,
@@ -50,6 +60,7 @@ CREATE TABLE IF NOT EXISTS delivery_order_items (
 );
 
 -- Create indexes for faster queries
+CREATE INDEX IF NOT EXISTS idx_products_product_code ON products(product_code);
 CREATE INDEX IF NOT EXISTS idx_refill_items_machine_id ON refill_items(machine_id);
 CREATE INDEX IF NOT EXISTS idx_delivery_orders_code ON delivery_orders(code);
 CREATE INDEX IF NOT EXISTS idx_delivery_orders_machine_id ON delivery_orders(machine_id);

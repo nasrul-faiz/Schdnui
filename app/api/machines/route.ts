@@ -19,6 +19,7 @@ export async function GET() {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to fetch machines"
+    console.error("[GET /api/machines] Error:", message)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

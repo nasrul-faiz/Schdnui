@@ -5,7 +5,6 @@ import {
   PlusIcon,
   PencilIcon,
   Trash2Icon,
-  CheckIcon,
   XIcon,
 } from "lucide-react"
 import { getMachines, type Machine } from "@/lib/machine-store"
@@ -45,29 +44,25 @@ const inputCls =
 interface PlacementEditRowProps {
   item: Placement
   products: Product[]
-  onSave: (updated: Placement) => void
+  draft: Placement
+  onDraftChange: (placement: Placement) => void
   onCancel: () => void
 }
 
 function PlacementEditRow({
   item,
   products,
-  onSave,
+  draft,
+  onDraftChange,
   onCancel,
 }: PlacementEditRowProps) {
-  const [draft, setDraft] = React.useState(item)
-
-  function set<K extends keyof Placement>(key: K, val: Placement[K]) {
-    setDraft((prev) => ({ ...prev, [key]: val }))
-  }
-
   return (
     <TableRow className="bg-accent/20">
       <TableCell className="py-1.5 text-center">
         <input
           className={inputCls}
           value={draft.slot}
-          onChange={(e) => set("slot", e.target.value)}
+          onChange={(e) => onDraftChange({ ...draft, slot: e.target.value })}
           placeholder="A1"
         />
       </TableCell>
@@ -75,7 +70,7 @@ function PlacementEditRow({
         <select
           className={inputCls}
           value={draft.productCode}
-          onChange={(e) => set("productCode", e.target.value)}
+          onChange={(e) => onDraftChange({ ...draft, productCode: e.target.value })}
         >
           <option value="">Select product</option>
           {products.map((p) => (
@@ -92,18 +87,12 @@ function PlacementEditRow({
           className={inputCls}
           value={draft.maxCapacity}
           onChange={(e) =>
-            set("maxCapacity", Math.max(0, parseInt(e.target.value) || 0))
+            onDraftChange({ ...draft, maxCapacity: Math.max(0, parseInt(e.target.value) || 0) })
           }
         />
       </TableCell>
       <TableCell className="py-1.5">
         <div className="flex justify-center gap-1">
-          <button
-            onClick={() => onSave(draft)}
-            className="rounded p-1 hover:bg-emerald-100 dark:hover:bg-emerald-900 text-emerald-600"
-          >
-            <CheckIcon className="size-3.5" />
-          </button>
           <button
             onClick={onCancel}
             className="rounded p-1 hover:bg-muted text-muted-foreground"
@@ -116,10 +105,15 @@ function PlacementEditRow({
   )
 }
 
-export function EditMachineProductsContent() {
+interface EditMachineProductsContentProps {
+  onSaveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+}
+
+export function EditMachineProductsContent({ onSaveRef }: EditMachineProductsContentProps) {
   const [machines, setMachines] = React.useState<Machine[]>([])
   const [products, setProducts] = React.useState<Product[]>([])
   const [placements, setPlacements] = React.useState<Placement[]>([])
+  const [drafts, setDrafts] = React.useState<Record<string, Placement>>({})
   const [loading, setLoading] = React.useState(true)
   const [selectedMachine, setSelectedMachine] = React.useState("")
   const [editingKey, setEditingKey] = React.useState<string | null>(null)
@@ -183,94 +177,104 @@ export function EditMachineProductsContent() {
     [products]
   )
 
-  async function handleAdd(draft: Placement) {
-    const slot = draft.slot.trim().toUpperCase()
-    const code = draft.productCode.trim().toUpperCase()
-    if (!draft.machineId || !slot || !code) return
-    if (placements.some((p) => p.machineId === draft.machineId && p.slot === slot))
-      return
+  const handleSaveAll = React.useCallback(async () => {
+    const itemsToSave: Array<RefillItem & { machine_id: string }> = []
 
-    const product = productMap.get(code)
-    if (!product) return
+    for (const [key, draft] of Object.entries(drafts)) {
+      const slot = draft.slot.trim().toUpperCase()
+      const code = draft.productCode.trim().toUpperCase()
+      if (!draft.machineId || !slot || !code) continue
 
-    const item: RefillItem & { machine_id: string } = {
-      machine_id: draft.machineId,
-      slot,
-      productCode: code,
-      productName: product.productName,
-      image: product.image,
-      maxCapacity: Math.max(0, draft.maxCapacity),
-      stockIn: 0,
-      overflow: 0,
-      stockOut: 0,
-      currentInventory: 0,
+      const product = productMap.get(code)
+      if (!product) continue
+
+      const item: RefillItem & { machine_id: string } = {
+        machine_id: draft.machineId,
+        slot,
+        productCode: code,
+        productName: product.productName,
+        image: product.image,
+        maxCapacity: Math.max(0, draft.maxCapacity),
+        stockIn: draft.stockIn,
+        overflow: draft.overflow,
+        stockOut: draft.stockOut,
+        currentInventory: draft.currentInventory,
+      }
+      itemsToSave.push(item)
     }
 
-    await upsertRefillItems([item])
-    setPlacements((prev) => [
-      ...prev,
-      { ...draft, slot, productCode: code, machineId: draft.machineId },
-    ])
+    if (itemsToSave.length > 0) {
+      await upsertRefillItems(itemsToSave)
+    }
+
+    // Reload placements from updated refill data
+    const data = await getRefillData()
+    const flat: Placement[] = []
+    const newProductMap = new Map<string, Product>()
+    for (const [machineId, items] of Object.entries(data)) {
+      for (const item of items) {
+        flat.push({
+          machineId,
+          slot: item.slot,
+          productCode: item.productCode,
+          maxCapacity: item.maxCapacity,
+          stockIn: item.stockIn,
+          overflow: item.overflow,
+          stockOut: item.stockOut,
+          currentInventory: item.currentInventory,
+        })
+        if (!newProductMap.has(item.productCode)) {
+          newProductMap.set(item.productCode, {
+            productCode: item.productCode,
+            productName: item.productName,
+            image: item.image,
+          })
+        }
+      }
+    }
+    setPlacements(flat)
+    setProducts(Array.from(newProductMap.values()))
+
+    setDrafts({})
     setAdding(false)
-    setNewPlacement((prev) => ({
-      ...prev,
-      slot: "",
-      productCode: "",
-      maxCapacity: 10,
-    }))
-  }
-
-  async function handleSave(updated: Placement) {
-    const slot = updated.slot.trim().toUpperCase()
-    const code = updated.productCode.trim().toUpperCase()
-    if (!slot || !code) return
-
-    const dupKey = `${updated.machineId}::${slot}`
-    if (
-      placements.some(
-        (p) => placementKey(p) === dupKey && placementKey(p) !== editingKey
-      )
-    )
-      return
-
-    const product = productMap.get(code)
-    if (!product) return
-
-    // If slot changed, delete the old row first
-    const [oldMachine, oldSlot] = (editingKey ?? "::").split("::")
-    if (editingKey && (oldSlot !== slot || oldMachine !== updated.machineId)) {
-      await deleteRefillItem(oldMachine, oldSlot)
-    }
-
-    const item: RefillItem & { machine_id: string } = {
-      machine_id: updated.machineId,
-      slot,
-      productCode: code,
-      productName: product.productName,
-      image: product.image,
-      maxCapacity: Math.max(0, updated.maxCapacity),
-      stockIn: updated.stockIn,
-      overflow: updated.overflow,
-      stockOut: updated.stockOut,
-      currentInventory: updated.currentInventory,
-    }
-    await upsertRefillItems([item])
-
-    setPlacements((prev) =>
-      prev.map((p) =>
-        placementKey(p) === editingKey
-          ? { ...updated, slot, productCode: code }
-          : p
-      )
-    )
     setEditingKey(null)
-  }
+  }, [drafts, productMap])
+
+  React.useEffect(() => {
+    if (onSaveRef) {
+      onSaveRef.current = handleSaveAll
+    }
+  }, [handleSaveAll, onSaveRef])
 
   async function handleDelete(placement: Placement) {
     await deleteRefillItem(placement.machineId, placement.slot)
     setPlacements((prev) =>
       prev.filter((p) => placementKey(p) !== placementKey(placement))
     )
+  }
+
+  function startAdd() {
+    setAdding(true)
+    setEditingKey(null)
+    setDrafts({ new: { ...newPlacement, machineId: selectedMachine } })
+  }
+
+  function startEdit(key: string) {
+    const placement = placements.find(p => placementKey(p) === key)
+    if (placement) {
+      setEditingKey(key)
+      setDrafts({ [key]: { ...placement } })
+    }
+  }
+
+  function cancelEdit() {
+    setEditingKey(null)
+    setAdding(false)
+    setDrafts({})
+  }
+
+  function updateDraft(key: string, placement: Placement) {
+    setDrafts((prev) => ({ ...prev, [key]: placement }))
   }
 
   if (loading) {
@@ -312,12 +316,8 @@ export function EditMachineProductsContent() {
           <Button
             size="sm"
             className="gap-1.5"
-            disabled={!selectedMachine || products.length === 0}
-            onClick={() => {
-              setAdding(true)
-              setEditingKey(null)
-              setNewPlacement((prev) => ({ ...prev, machineId: selectedMachine }))
-            }}
+            disabled={!selectedMachine || products.length === 0 || editingKey !== null || adding}
+            onClick={startAdd}
           >
             <PlusIcon className="size-3.5" />
             Add Slot
@@ -339,26 +339,28 @@ export function EditMachineProductsContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {adding && (
+              {adding && drafts.new && (
                 <PlacementEditRow
-                  item={newPlacement}
+                  item={drafts.new}
                   products={products}
-                  onSave={handleAdd}
-                  onCancel={() => setAdding(false)}
+                  draft={drafts.new}
+                  onDraftChange={(p) => updateDraft("new", p)}
+                  onCancel={cancelEdit}
                 />
               )}
               {visiblePlacements.map((placement) => {
                 const key = placementKey(placement)
                 const product = productMap.get(placement.productCode)
 
-                if (editingKey === key) {
+                if (editingKey === key && drafts[key]) {
                   return (
                     <PlacementEditRow
                       key={key}
                       item={placement}
                       products={products}
-                      onSave={handleSave}
-                      onCancel={() => setEditingKey(null)}
+                      draft={drafts[key]}
+                      onDraftChange={(p) => updateDraft(key, p)}
+                      onCancel={cancelEdit}
                     />
                   )
                 }
@@ -404,10 +406,7 @@ export function EditMachineProductsContent() {
                     <TableCell className="py-1.5">
                       <div className="flex justify-center gap-1">
                         <button
-                          onClick={() => {
-                            setEditingKey(key)
-                            setAdding(false)
-                          }}
+                          onClick={() => startEdit(key)}
                           className="rounded p-1 hover:bg-muted text-muted-foreground hover:text-foreground"
                         >
                           <PencilIcon className="size-3.5" />

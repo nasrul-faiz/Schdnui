@@ -5,7 +5,6 @@ import {
   PlusIcon,
   PencilIcon,
   Trash2Icon,
-  CheckIcon,
   XIcon,
   LinkIcon,
   UploadIcon,
@@ -30,24 +29,20 @@ const inputCls =
 
 interface EditRowProps {
   item: Product
-  onSave: (updated: Product) => void
+  draft: Product
+  onDraftChange: (product: Product) => void
   onCancel: () => void
 }
 
-function EditRow({ item, onSave, onCancel }: EditRowProps) {
-  const [draft, setDraft] = React.useState(item)
+function EditRow({ item, draft, onDraftChange, onCancel }: EditRowProps) {
   const [imageMode, setImageMode] = React.useState<"url" | "upload">("url")
   const fileRef = React.useRef<HTMLInputElement>(null)
-
-  function set<K extends keyof Product>(key: K, val: Product[K]) {
-    setDraft((prev) => ({ ...prev, [key]: val }))
-  }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = () => set("image", reader.result as string)
+    reader.onload = () => onDraftChange({ ...draft, image: reader.result as string })
     reader.readAsDataURL(file)
   }
 
@@ -57,7 +52,7 @@ function EditRow({ item, onSave, onCancel }: EditRowProps) {
         <input
           className={inputCls}
           value={draft.productCode}
-          onChange={(e) => set("productCode", e.target.value)}
+          onChange={(e) => onDraftChange({ ...draft, productCode: e.target.value })}
         />
       </TableCell>
       <TableCell className="py-1.5">
@@ -65,7 +60,7 @@ function EditRow({ item, onSave, onCancel }: EditRowProps) {
           <input
             className={inputCls}
             value={draft.productName}
-            onChange={(e) => set("productName", e.target.value)}
+            onChange={(e) => onDraftChange({ ...draft, productName: e.target.value })}
             placeholder="Product name"
           />
           <div className="flex items-center gap-1">
@@ -117,7 +112,7 @@ function EditRow({ item, onSave, onCancel }: EditRowProps) {
             <input
               className={inputCls}
               value={draft.image}
-              onChange={(e) => set("image", e.target.value)}
+              onChange={(e) => onDraftChange({ ...draft, image: e.target.value })}
               placeholder="https://..."
             />
           )}
@@ -125,12 +120,6 @@ function EditRow({ item, onSave, onCancel }: EditRowProps) {
       </TableCell>
       <TableCell className="py-1.5">
         <div className="flex justify-center gap-1">
-          <button
-            onClick={() => onSave(draft)}
-            className="rounded p-1 hover:bg-emerald-100 dark:hover:bg-emerald-900 text-emerald-600"
-          >
-            <CheckIcon className="size-3.5" />
-          </button>
           <button
             onClick={onCancel}
             className="rounded p-1 hover:bg-muted text-muted-foreground"
@@ -143,12 +132,14 @@ function EditRow({ item, onSave, onCancel }: EditRowProps) {
   )
 }
 
-export function EditProductsContent() {
+interface EditProductsContentProps {
+  onSaveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+}
+
+export function EditProductsContent({ onSaveRef }: EditProductsContentProps) {
   const [products, setProducts] = React.useState<Product[]>([])
-  // keep all refill items so we can propagate product name/image changes
-  const [allItems, setAllItems] = React.useState<
-    Array<RefillItem & { machine_id: string }>
-  >([])
+  const [allItems, setAllItems] = React.useState<Array<RefillItem & { machine_id: string }>>([])
+  const [drafts, setDrafts] = React.useState<Record<string, Product>>({})
   const [loading, setLoading] = React.useState(true)
   const [editingCode, setEditingCode] = React.useState<string | null>(null)
   const [adding, setAdding] = React.useState(false)
@@ -180,50 +171,58 @@ export function EditProductsContent() {
     })
   }, [])
 
-  async function handleSave(updated: Product) {
-    const code = updated.productCode.trim().toUpperCase()
-    if (!code || !updated.productName.trim()) return
-    if (
-      products.some(
-        (p) => p.productCode === code && p.productCode !== editingCode
-      )
-    )
-      return
+  const handleSaveAll = React.useCallback(async () => {
+    const itemsToUpdate: Array<RefillItem & { machine_id: string }> = []
 
-    const finalProduct: Product = {
-      productCode: code,
-      productName: updated.productName.trim(),
-      image: updated.image.trim(),
+    for (const [code, draft] of Object.entries(drafts)) {
+      const finalCode = draft.productCode.trim().toUpperCase()
+      if (!finalCode || !draft.productName.trim()) continue
+
+      // Find all refill items that use this product code
+      const affected = allItems.filter((i) => i.productCode === code)
+      if (affected.length > 0) {
+        const updated = affected.map((i) => ({
+          ...i,
+          productCode: finalCode,
+          productName: draft.productName.trim(),
+          image: draft.image.trim(),
+        }))
+        itemsToUpdate.push(...updated)
+      }
     }
 
-    // Update all refill items that use this product code
-    const affected = allItems
-      .filter((i) => i.productCode === editingCode)
-      .map((i) => ({
-        ...i,
-        productCode: finalProduct.productCode,
-        productName: finalProduct.productName,
-        image: finalProduct.image,
-      }))
-
-    if (affected.length > 0) {
-      await upsertRefillItems(affected)
-      setAllItems((prev) =>
-        prev.map((i) =>
-          i.productCode === editingCode
-            ? { ...i, ...finalProduct }
-            : i
-        )
-      )
+    if (itemsToUpdate.length > 0) {
+      await upsertRefillItems(itemsToUpdate)
+      setAllItems(itemsToUpdate)
     }
 
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.productCode === editingCode ? finalProduct : p
-      )
-    )
+    // Update products list
+    const newProducts: Product[] = []
+    const seen = new Set<string>()
+    for (const item of itemsToUpdate) {
+      if (!seen.has(item.productCode)) {
+        newProducts.push({
+          productCode: item.productCode,
+          productName: item.productName,
+          image: item.image,
+        })
+        seen.add(item.productCode)
+      }
+    }
+    if (newProducts.length > 0) {
+      setProducts(newProducts)
+    }
+
+    setDrafts({})
+    setAdding(false)
     setEditingCode(null)
-  }
+  }, [drafts, allItems])
+
+  React.useEffect(() => {
+    if (onSaveRef) {
+      onSaveRef.current = handleSaveAll
+    }
+  }, [handleSaveAll, onSaveRef])
 
   async function handleDelete(productCode: string) {
     await deleteRefillItemsByProduct(productCode)
@@ -231,22 +230,28 @@ export function EditProductsContent() {
     setAllItems((prev) => prev.filter((i) => i.productCode !== productCode))
   }
 
-  async function handleAdd(draft: Product) {
-    const code = draft.productCode.trim().toUpperCase()
-    if (!code || !draft.productName.trim()) return
-    if (products.some((p) => p.productCode === code)) return
-    // A product without any placement is just tracked locally —
-    // it will be saved to DB when assigned to a machine slot.
-    setProducts((prev) => [
-      ...prev,
-      {
-        productCode: code,
-        productName: draft.productName.trim(),
-        image: draft.image.trim(),
-      },
-    ])
+  function startAdd() {
+    setAdding(true)
+    setEditingCode(null)
+    setDrafts({ new: { productCode: "", productName: "", image: "" } })
+  }
+
+  function startEdit(code: string) {
+    const product = products.find((p) => p.productCode === code)
+    if (product) {
+      setEditingCode(code)
+      setDrafts({ [code]: { ...product } })
+    }
+  }
+
+  function cancelEdit() {
+    setEditingCode(null)
     setAdding(false)
-    setNewProduct({ productCode: "", productName: "", image: "" })
+    setDrafts({})
+  }
+
+  function updateDraft(code: string, product: Product) {
+    setDrafts((prev) => ({ ...prev, [code]: product }))
   }
 
   if (loading) {
@@ -266,10 +271,8 @@ export function EditProductsContent() {
         <Button
           size="sm"
           className="gap-1.5"
-          onClick={() => {
-            setAdding(true)
-            setEditingCode(null)
-          }}
+          onClick={startAdd}
+          disabled={editingCode !== null || adding}
         >
           <PlusIcon className="size-3.5" />
           Add Product
@@ -291,21 +294,23 @@ export function EditProductsContent() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {adding && (
+            {adding && drafts.new && (
               <EditRow
-                item={newProduct}
-                onSave={handleAdd}
-                onCancel={() => setAdding(false)}
+                item={drafts.new}
+                draft={drafts.new}
+                onDraftChange={(p) => updateDraft("new", p)}
+                onCancel={cancelEdit}
               />
             )}
             {products.map((item) => {
-              if (editingCode === item.productCode) {
+              if (editingCode === item.productCode && drafts[item.productCode]) {
                 return (
                   <EditRow
                     key={item.productCode}
                     item={item}
-                    onSave={handleSave}
-                    onCancel={() => setEditingCode(null)}
+                    draft={drafts[item.productCode]}
+                    onDraftChange={(p) => updateDraft(item.productCode, p)}
+                    onCancel={cancelEdit}
                   />
                 )
               }
@@ -337,7 +342,7 @@ export function EditProductsContent() {
                   <TableCell className="py-1.5">
                     <div className="flex justify-center gap-1">
                       <button
-                        onClick={() => setEditingCode(item.productCode)}
+                        onClick={() => startEdit(item.productCode)}
                         className="rounded p-1 hover:bg-muted text-muted-foreground hover:text-foreground"
                       >
                         <PencilIcon className="size-3.5" />

@@ -39,7 +39,7 @@ export async function saveRefillData(data: RefillDataMap): Promise<void> {
     }
 
     const response = await fetch("/api/refill", {
-      method: "POST",
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(items),
     })
