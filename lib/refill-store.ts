@@ -9,51 +9,48 @@ function cloneDefaultData(): RefillDataMap {
   return JSON.parse(JSON.stringify(defaultRefillData)) as RefillDataMap
 }
 
-function isRefillItem(value: unknown): value is RefillItem {
-  if (!value || typeof value !== "object") return false
-  const item = value as Partial<RefillItem>
-  return (
-    typeof item.slot === "string" &&
-    typeof item.productCode === "string" &&
-    typeof item.productName === "string" &&
-    typeof item.image === "string" &&
-    typeof item.stockIn === "number" &&
-    typeof item.overflow === "number" &&
-    typeof item.stockOut === "number" &&
-    typeof item.currentInventory === "number" &&
-    typeof item.maxCapacity === "number"
-  )
-}
-
-function isRefillDataMap(value: unknown): value is RefillDataMap {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false
-  return Object.entries(value).every(
-    ([machineId, items]) =>
-      typeof machineId === "string" &&
-      Array.isArray(items) &&
-      items.every((item) => isRefillItem(item))
-  )
-}
-
-export function getRefillData(): RefillDataMap {
-  if (typeof window === "undefined") return cloneDefaultData()
-
+export async function getRefillData(): Promise<RefillDataMap> {
   try {
-    const raw = localStorage.getItem(REFILL_DATA_STORAGE_KEY)
-    if (!raw) return cloneDefaultData()
+    const response = await fetch("/api/refill", { cache: "no-store" })
+    if (!response.ok) throw new Error("Failed to fetch refill data")
 
-    const parsed: unknown = JSON.parse(raw)
-    if (isRefillDataMap(parsed)) {
-      return parsed
+    const items: Array<RefillItem & { machine_id: string }> = await response.json()
+
+    // Transform flat array into nested object by machine_id
+    const dataMap: RefillDataMap = {}
+    for (const item of items) {
+      const machineId = item.machine_id
+      if (!dataMap[machineId]) {
+        dataMap[machineId] = []
+      }
+      dataMap[machineId].push(item)
     }
-  } catch {
-    // Ignore parse/storage errors and fall back to defaults.
-  }
 
-  return cloneDefaultData()
+    return Object.keys(dataMap).length > 0 ? dataMap : cloneDefaultData()
+  } catch (error) {
+    console.error("Error fetching refill data:", error)
+    return cloneDefaultData()
+  }
 }
 
-export function saveRefillData(data: RefillDataMap): void {
-  if (typeof window === "undefined") return
-  localStorage.setItem(REFILL_DATA_STORAGE_KEY, JSON.stringify(data))
+export async function saveRefillData(data: RefillDataMap): Promise<void> {
+  try {
+    // Flatten the nested object into a single array
+    const items: Array<RefillItem & { machine_id: string }> = []
+    for (const [machineId, machineItems] of Object.entries(data)) {
+      for (const item of machineItems) {
+        items.push({ ...item, machine_id: machineId })
+      }
+    }
+
+    const response = await fetch("/api/refill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(items),
+    })
+
+    if (!response.ok) throw new Error("Failed to save refill data")
+  } catch (error) {
+    console.error("Error saving refill data:", error)
+  }
 }

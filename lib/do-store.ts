@@ -25,37 +25,84 @@ function emitDeliveryOrdersUpdated(): void {
 export function generateDOCode(): string {
   const now = new Date()
   const date = now.toISOString().slice(2, 10).replace(/-/g, "")
-  const all = getAllDOs()
-  const seq = (all.length + 1).toString().padStart(3, "0")
+  const seq = Math.random().toString(36).substring(7).toUpperCase()
   return `DO-${date}-${seq}`
 }
 
-export function saveDO(order: DeliveryOrder): void {
-  const all = getAllDOs()
-  all.push(order)
-  localStorage.setItem(DELIVERY_ORDERS_STORAGE_KEY, JSON.stringify(all))
-  emitDeliveryOrdersUpdated()
+export async function saveDO(order: DeliveryOrder): Promise<void> {
+  try {
+    const response = await fetch("/api/delivery-orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        code: order.code,
+        machine_id: order.machineId,
+        machine_label: order.machineLabel,
+        date: order.date,
+        items: order.items,
+      }),
+    })
+
+    if (!response.ok) throw new Error("Failed to save delivery order")
+    emitDeliveryOrdersUpdated()
+  } catch (error) {
+    console.error("Error saving delivery order:", error)
+  }
 }
 
-export function getAllDOs(): DeliveryOrder[] {
-  if (typeof window === "undefined") return []
+export async function getAllDOs(): Promise<DeliveryOrder[]> {
   try {
-    const raw = localStorage.getItem(DELIVERY_ORDERS_STORAGE_KEY)
-    return raw ? JSON.parse(raw) : []
-  } catch {
+    const response = await fetch("/api/delivery-orders", { cache: "no-store" })
+    if (!response.ok) throw new Error("Failed to fetch delivery orders")
+    const data = await response.json()
+    return data.map(
+      (order: any) => ({
+        code: order.code,
+        machineId: order.machine_id,
+        machineLabel: order.machine_label,
+        date: order.date,
+        status: order.status,
+        items: order.items || [],
+      })
+    )
+  } catch (error) {
+    console.error("Error fetching delivery orders:", error)
     return []
   }
 }
 
-export function getDOByCode(code: string): DeliveryOrder | null {
-  return getAllDOs().find((d) => d.code === code.toUpperCase()) ?? null
+export async function getDOByCode(code: string): Promise<DeliveryOrder | null> {
+  try {
+    const response = await fetch(`/api/delivery-orders?code=${code}`, {
+      cache: "no-store",
+    })
+    if (!response.ok) return null
+    const order = await response.json()
+    return {
+      code: order.code,
+      machineId: order.machine_id,
+      machineLabel: order.machine_label,
+      date: order.date,
+      status: order.status,
+      items: order.items || [],
+    }
+  } catch (error) {
+    console.error("Error fetching delivery order:", error)
+    return null
+  }
 }
 
-export function markDOComplete(code: string): void {
-  const all = getAllDOs()
-  const updated = all.map((d) =>
-    d.code === code ? { ...d, status: "completed" as const } : d
-  )
-  localStorage.setItem(DELIVERY_ORDERS_STORAGE_KEY, JSON.stringify(updated))
-  emitDeliveryOrdersUpdated()
+export async function markDOComplete(code: string): Promise<void> {
+  try {
+    const response = await fetch("/api/delivery-orders", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, status: "completed" }),
+    })
+
+    if (!response.ok) throw new Error("Failed to mark DO as complete")
+    emitDeliveryOrdersUpdated()
+  } catch (error) {
+    console.error("Error marking delivery order complete:", error)
+  }
 }

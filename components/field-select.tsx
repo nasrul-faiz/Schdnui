@@ -35,7 +35,7 @@ export function FieldSelect({ value, onChange, machines: machinesProp }: FieldSe
 
   React.useEffect(() => {
     if (!machinesProp) {
-      setMachines(getMachines())
+      getMachines().then(setMachines)
     }
   }, [machinesProp])
 

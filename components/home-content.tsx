@@ -16,7 +16,7 @@ type RefillRowValues = {
 
 export function HomeContent() {
   const [selectedMachine, setSelectedMachine] = React.useState("")
-  const [refillData, setRefillData] = React.useState<RefillDataMap>(() => getRefillData())
+  const [refillData, setRefillData] = React.useState<RefillDataMap>({})
   const [refillStarted, setRefillStarted] = React.useState(false)
   const [doCode, setDoCode] = React.useState("")
   const [doError, setDoError] = React.useState("")
@@ -25,9 +25,11 @@ export function HomeContent() {
   const [tableValues, setTableValues] = React.useState<Record<string, RefillRowValues>>({})
 
   React.useEffect(() => {
+    getRefillData().then(setRefillData)
+
     function handleStorage(event: StorageEvent) {
       if (event.key === REFILL_DATA_STORAGE_KEY) {
-        setRefillData(getRefillData())
+        getRefillData().then(setRefillData)
       }
     }
 
@@ -73,21 +75,22 @@ export function HomeContent() {
       setDoError("Please enter a DO code.")
       return
     }
-    const found = getDOByCode(doCode.trim())
-    if (!found) {
-      setDoError(`"${doCode.toUpperCase()}" not found.`)
-      return
-    }
-    if (found.status === "completed") {
-      setDoError("This DO has already been completed.")
-      return
-    }
-    if (found.machineId !== selectedMachine) {
-      setDoError(`This DO is for ${found.machineId}, not ${selectedMachine}.`)
-      return
-    }
-    setActiveDO(found)
-    setDoError("")
+    getDOByCode(doCode.trim()).then((found) => {
+      if (!found) {
+        setDoError(`"${doCode.toUpperCase()}" not found.`)
+        return
+      }
+      if (found.status === "completed") {
+        setDoError("This DO has already been completed.")
+        return
+      }
+      if (found.machineId !== selectedMachine) {
+        setDoError(`This DO is for ${found.machineId}, not ${selectedMachine}.`)
+        return
+      }
+      setActiveDO(found)
+      setDoError("")
+    })
   }
 
   function handleClearDO() {
@@ -128,11 +131,11 @@ export function HomeContent() {
       })
     )
 
-    saveRefillData(updatedMap)
-    setRefillData(updatedMap)
-
-    if (activeDO) markDOComplete(activeDO.code)
-    setRefillComplete(true)
+    saveRefillData(updatedMap).then(() => {
+      setRefillData(updatedMap)
+      if (activeDO) markDOComplete(activeDO.code)
+      setRefillComplete(true)
+    })
   }
 
   if (refillComplete) {

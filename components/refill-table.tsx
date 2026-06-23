@@ -51,13 +51,16 @@ const inputCls =
   "w-16 rounded-md border bg-background px-1.5 py-1 text-center text-xs tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
 
 export function RefillTable({ machineId, items, prefilledStockIn, isEditable = true, onValuesChange }: RefillTableProps) {
-  const [allOrders, setAllOrders] = React.useState<DeliveryOrder[]>(() => getAllDOs())
+  const [allOrders, setAllOrders] = React.useState<DeliveryOrder[]>([])
   const [isViewDOpen, setIsViewDOOpen] = React.useState(false)
 
   React.useEffect(() => {
-    function reloadOrders() {
-      setAllOrders(getAllDOs())
+    async function reloadOrders() {
+      const orders = await getAllDOs()
+      setAllOrders(orders)
     }
+
+    reloadOrders()
 
     function handleStorage(event: StorageEvent) {
       if (event.key === DELIVERY_ORDERS_STORAGE_KEY) {

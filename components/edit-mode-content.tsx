@@ -263,8 +263,15 @@ function MachineEditRow({ machine, onSave, onCancel }: MachineEditRowProps) {
 
 export function EditModeContent() {
   const [tab, setTab] = React.useState<Tab>("products")
-  const [machines, setMachines] = React.useState<Machine[]>(() => getMachines())
-  const [initialRefillData] = React.useState<RefillDataMap>(() => getRefillData())
+  const [machines, setMachines] = React.useState<Machine[]>([])
+  const [initialRefillData, setInitialRefillData] = React.useState<RefillDataMap>({})
+
+  React.useEffect(() => {
+    Promise.all([getMachines(), getRefillData()]).then(([m, r]) => {
+      setMachines(m)
+      setInitialRefillData(r)
+    })
+  }, [])
 
   // machines state
   const persistMachines = (updated: Machine[]) => {
@@ -284,7 +291,7 @@ export function EditModeContent() {
 
   // placement state (product x machine)
   const [placements, setPlacements] = React.useState<MachinePlacement[]>(() => buildInitialPlacements(initialRefillData))
-  const [selectedPlacementMachine, setSelectedPlacementMachine] = React.useState<string>(() => getMachines()[0]?.value ?? "")
+  const [selectedPlacementMachine, setSelectedPlacementMachine] = React.useState<string>(() => machines[0]?.value ?? "")
   const [placementEditingKey, setPlacementEditingKey] = React.useState<string | null>(null)
   const [addingPlacement, setAddingPlacement] = React.useState(false)
   const [newPlacement, setNewPlacement] = React.useState<MachinePlacement>({

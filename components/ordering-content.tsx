@@ -33,14 +33,20 @@ const inputCls =
 
 export function OrderingContent() {
   const [selectedMachine, setSelectedMachine] = React.useState("")
-  const [refillData, setRefillData] = React.useState<RefillDataMap>(() => getRefillData())
+  const [machines, setMachines] = React.useState<Array<{ value: string; label: string }>>([])
+  const [refillData, setRefillData] = React.useState<RefillDataMap>({})
   const [quantities, setQuantities] = React.useState<Record<string, number>>({})
   const [submittedDO, setSubmittedDO] = React.useState<DeliveryOrder | null>(null)
 
   React.useEffect(() => {
+    Promise.all([getMachines(), getRefillData()]).then(([m, r]) => {
+      setMachines(m)
+      setRefillData(r)
+    })
+
     function handleStorage(event: StorageEvent) {
       if (event.key === REFILL_DATA_STORAGE_KEY) {
-        setRefillData(getRefillData())
+        getRefillData().then(setRefillData)
       }
     }
 
@@ -63,7 +69,7 @@ export function OrderingContent() {
     [items]
   )
   const machineLabel =
-    getMachines().find((m) => m.value === selectedMachine)?.label ?? selectedMachine
+    machines.find((m) => m.value === selectedMachine)?.label ?? selectedMachine
 
   function handleMachineChange(value: string) {
     setSelectedMachine(value)
@@ -98,8 +104,9 @@ export function OrderingContent() {
       })),
       status: "pending",
     }
-    saveDO(order)
-    setSubmittedDO(order)
+    saveDO(order).then(() => {
+      setSubmittedDO(order)
+    })
   }
 
   function handleNewOrder() {
