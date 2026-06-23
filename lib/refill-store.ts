@@ -54,3 +54,47 @@ export async function saveRefillData(data: RefillDataMap): Promise<void> {
     console.error("Error saving refill data:", error)
   }
 }
+
+export async function upsertRefillItems(
+  items: Array<RefillItem & { machine_id: string }>
+): Promise<void> {
+  try {
+    const response = await fetch("/api/refill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(items),
+    })
+    if (!response.ok) throw new Error("Failed to upsert refill items")
+  } catch (error) {
+    console.error("Error upserting refill items:", error)
+  }
+}
+
+export async function deleteRefillItem(
+  machineId: string,
+  slot: string
+): Promise<void> {
+  try {
+    const response = await fetch(
+      `/api/refill?machine_id=${encodeURIComponent(machineId)}&slot=${encodeURIComponent(slot)}`,
+      { method: "DELETE" }
+    )
+    if (!response.ok) throw new Error("Failed to delete refill item")
+  } catch (error) {
+    console.error("Error deleting refill item:", error)
+  }
+}
+
+export async function deleteRefillItemsByProduct(
+  productCode: string
+): Promise<void> {
+  try {
+    const response = await fetch(
+      `/api/refill?product_code=${encodeURIComponent(productCode)}`,
+      { method: "DELETE" }
+    )
+    if (!response.ok) throw new Error("Failed to delete refill items by product")
+  } catch (error) {
+    console.error("Error deleting refill items by product:", error)
+  }
+}

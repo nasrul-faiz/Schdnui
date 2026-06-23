@@ -162,3 +162,40 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const machineId = searchParams.get("machine_id")
+    const slot = searchParams.get("slot")
+    const productCode = searchParams.get("product_code")
+
+    if (machineId && slot) {
+      await dbQuery(
+        "DELETE FROM refill_items WHERE machine_id = $1 AND slot = $2",
+        [machineId, slot]
+      )
+    } else if (productCode) {
+      await dbQuery(
+        "DELETE FROM refill_items WHERE product_code = $1",
+        [productCode]
+      )
+    } else if (machineId) {
+      await dbQuery(
+        "DELETE FROM refill_items WHERE machine_id = $1",
+        [machineId]
+      )
+    } else {
+      return NextResponse.json(
+        { error: "machine_id+slot, product_code, or machine_id is required" },
+        { status: 400 }
+      )
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to delete refill item"
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
+}

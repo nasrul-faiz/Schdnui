@@ -58,6 +58,13 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Fetch old value to cascade machine_id in refill_items
+    const existing = await dbQuery<Machine>(
+      "SELECT value FROM machines WHERE id = $1",
+      [id]
+    )
+    const oldValue = existing.rows[0]?.value
+
     const result = await dbQuery<Machine>(
       "UPDATE machines SET value = $1, label = $2, updated_at = NOW() WHERE id = $3 RETURNING id, value, label",
       [value, label, id]
@@ -65,6 +72,14 @@ export async function PUT(request: NextRequest) {
 
     if (result.rows.length === 0) {
       return NextResponse.json({ error: "Machine not found" }, { status: 404 })
+    }
+
+    // Cascade machine_id change to refill_items
+    if (oldValue && oldValue !== value) {
+      await dbQuery(
+        "UPDATE refill_items SET machine_id = $1 WHERE machine_id = $2",
+        [value, oldValue]
+      )
     }
 
     return NextResponse.json(result.rows[0])
