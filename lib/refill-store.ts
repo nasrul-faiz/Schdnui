@@ -1,13 +1,8 @@
 import type { RefillItem } from "@/components/refill-table"
-import { refillData as defaultRefillData } from "@/lib/refill-data"
 
 export const REFILL_DATA_STORAGE_KEY = "refill_data"
 
 export type RefillDataMap = Record<string, RefillItem[]>
-
-function cloneDefaultData(): RefillDataMap {
-  return JSON.parse(JSON.stringify(defaultRefillData)) as RefillDataMap
-}
 
 export async function getRefillData(): Promise<RefillDataMap> {
   try {
@@ -26,10 +21,10 @@ export async function getRefillData(): Promise<RefillDataMap> {
       dataMap[machineId].push(item)
     }
 
-    return Object.keys(dataMap).length > 0 ? dataMap : cloneDefaultData()
+    return dataMap
   } catch (error) {
     console.error("Error fetching refill data:", error)
-    return cloneDefaultData()
+    return {}
   }
 }
 
